@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Name: ch/njol/skript/lsp
+Automatic-Module-Name: ch.njol.skript.lsp
+

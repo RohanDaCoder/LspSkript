@@ -1,0 +1,6 @@
+name: SkriptLSP
+version: ${full.version} # replaced at build time
+author: SkriptLSP
+main: ch.njol.skript.lsp.SkriptLSP
+api-version: '1.21'
+depend: [Skript]
