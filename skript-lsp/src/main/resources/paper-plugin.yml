@@ -1,0 +1,11 @@
+name: lspskript
+version: ${version}
+main: me.rohandacoder.lspskript.LspSkript
+description: LspSkript
+api-version: '1.21'
+dependencies:
+  server:
+    Skript:
+      load: BEFORE
+      required: true
+      join-classpath: true

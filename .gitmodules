@@ -1,0 +1,3 @@
+[submodule "skript-grammar"]
+	path = skript-grammar
+	url = https://github.com/SkriptLang/skript-grammar.git

@@ -1,0 +1,5 @@
+# LspSkript configuration
+# TCP port the LSP server listens on (VS Code extension connects here).
+port: 30505
+# LSP message tracing: off | messages | verbose
+trace: false

@@ -1,0 +1,13 @@
+# Build artifacts
+.gradle/
+build/
+node_modules/
+dist/
+*.vsix
+
+# Test server data (PaperMC world, downloaded jars)
+docker/data/
+
+# OS / editor
+.DS_Store
+*.log

@@ -1,4 +1,4 @@
-rootProject.name = 'SkriptLSP'
+rootProject.name = 'lspskript'
 
 // The LSP backend plugin lives in the skript-lsp subproject.
 include 'skript-lsp'

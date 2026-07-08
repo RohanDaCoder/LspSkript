@@ -1,0 +1,72 @@
+{
+    "name": "lspskript",
+    "displayName": "LspSkript",
+    "description": "Full Skript language support (diagnostics, completion, hover, definitions, rename) powered by Skript's real parser.",
+    "version": "0.1.0",
+    "publisher": "skriptlang",
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Linters"
+    ],
+    "activationEvents": [
+        "onLanguage:skript"
+    ],
+    "main": "./dist/extension.js",
+    "scripts": {
+        "vscode:prepublish": "bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
+        "build": "bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
+        "package": "vsce package --allow-missing-repository"
+    },
+    "contributes": {
+        "languages": [
+            {
+                "id": "skript",
+                "aliases": [
+                    "Skript",
+                    "skript"
+                ],
+                "extensions": [
+                    ".sk"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "skript",
+                "scopeName": "source.skript",
+                "path": "./syntaxes/skript.tmLanguage.json"
+            }
+        ],
+        "configuration": {
+            "title": "Skript LSP",
+            "properties": {
+                "skriptLsp.port": {
+                    "type": "number",
+                    "default": 30505,
+                    "description": "TCP port the LspSkript plugin is listening on."
+                },
+                "skriptLsp.trace": {
+                    "type": "string",
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
+                    "default": "off",
+                    "description": "LSP message tracing level."
+                }
+            }
+        }
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    },
+    "devDependencies": {
+        "@vscode/vsce": "^3.9.2",
+        "bun": "^1.3.0"
+    }
+}

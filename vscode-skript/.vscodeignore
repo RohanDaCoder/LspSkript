@@ -1,0 +1,8 @@
+.vscode/**
+.vscode-test/**
+.gitignore
+bun.lock
+node_modules/**
+**/*.map
+**/*.ts
+extension.js
