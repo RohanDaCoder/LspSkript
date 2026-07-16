@@ -44,7 +44,7 @@ class SkriptLanguageServer(private val port: Int, private val trace: Boolean) {
     private fun acceptLoop() {
         while (running.get()) {
             try {
-                val socket = serverSocket!!.accept().get()
+                val socket = checkNotNull(serverSocket).accept().get()
                 if (!running.get()) break
                 handleClient(socket)
             } catch (e: InterruptedException) {

@@ -23,7 +23,7 @@ class LspSkript : JavaPlugin() {
 
         server = SkriptLanguageServer(port, trace)
         try {
-            server!!.start()
+            server?.start()
             logger.info("LspSkript listening on port $port")
         } catch (e: Exception) {
             logger.log(Level.SEVERE, "Failed to start LspSkript", e)
@@ -31,9 +31,9 @@ class LspSkript : JavaPlugin() {
     }
 
     override fun onDisable() {
-        if (server != null) {
+        server?.let { s ->
             try {
-                server!!.stop()
+                s.stop()
             } catch (e: Exception) {
                 logger.log(Level.SEVERE, "Error stopping LspSkript", e)
             }
