@@ -12,7 +12,7 @@ what a real `/skript reload` prints in-game.
 ```mermaid
 flowchart LR
     VS[VS Code / editor] <-->|LSP over TCP :30505| PL[Paper plugin: LspSkript]
-    PL -->|ScriptLoader| SK[Skript 2.15.4]
+    PL -->|ScriptLoader| SK[Skript 2.16.0]
     SK -->|LogEntries| PL
     PL -->|Diagnostics / hover / etc.| VS
 ```
@@ -53,7 +53,7 @@ This is a multi-module repository:
 ## Requirements
 
 - A **PaperMC** server with:
-  - [Skript](https://github.com/SkriptLang/Skript) `2.15.4` (hard dependency, loaded before the plugin)
+  - [Skript](https://github.com/SkriptLang/Skript) `2.16.0` (hard dependency, loaded before the plugin)
   - The **LspSkript** plugin jar installed in `plugins/`
 - The plugin listens on a TCP port (default `30505`).
 
@@ -95,7 +95,7 @@ The plugin reads `plugins/LspSkript/config.yml`:
 - Kotlin 2.3.0 (JVM toolchain 25)
 - [LSP4J](https://github.com/eclipse-lsp4j/lsp4j) 0.23.1
 - Paper API `1.21.11-R0.1-SNAPSHOT` (compile-only)
-- Skript `2.15.4` (compile-only, provided at runtime)
+- Skript `2.16.0` (compile-only, provided at runtime)
 
 ## License
 

@@ -22,7 +22,7 @@ that are identical to what Skript prints in-game.
 ## Requirements
 
 - A PaperMC server (1.21.x) with:
-  - [Skript](https://github.com/SkriptLang/Skript) `2.15.4` (hard dependency)
+  - [Skript](https://github.com/SkriptLang/Skript) `2.16.0` (hard dependency)
   - The **LspSkript** plugin jar installed in `plugins/`
 - The LspSkript plugin listens on a TCP port (default `30505`).
 
