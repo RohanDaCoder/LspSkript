@@ -21,7 +21,7 @@ class HoverProvider {
         if (word.isEmpty()) return null
 
         val reg: SyntaxRegistry = SyntaxRegistryAccess.registry()
-        val matches: MutableList<SyntaxInfo<*>> = ArrayList()
+        val matches: MutableList<SyntaxInfo<*>> = mutableListOf()
         collect(reg.syntaxes(SyntaxRegistry.EFFECT), word, matches)
         collect(reg.syntaxes(SyntaxRegistry.CONDITION), word, matches)
         collect(reg.syntaxes(SyntaxRegistry.EXPRESSION), word, matches)

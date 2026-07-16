@@ -25,7 +25,7 @@ class CompletionProvider {
 
         val context = detectContext(text, position)
 
-        val items: MutableList<CompletionItem> = ArrayList()
+        val items: MutableList<CompletionItem> = mutableListOf()
         when (context) {
             Context.TOP_LEVEL -> addStructures(items, prefix)
             Context.IN_SECTION -> {
@@ -113,7 +113,7 @@ class CompletionProvider {
             }
         }
         // De-duplicate by label.
-        val seen: MutableSet<String> = HashSet()
+        val seen: MutableSet<String> = mutableSetOf()
         items.removeIf { !seen.add(it.label) }
     }
 

@@ -25,7 +25,7 @@ class SignatureHelpProvider {
         // Find the matching syntax by seeing if any registered pattern's prefix
         // appears in the text before the cursor.
         val reg: SyntaxRegistry = SyntaxRegistryAccess.registry()
-        val candidates: MutableList<SyntaxInfo<*>> = ArrayList()
+        val candidates: MutableList<SyntaxInfo<*>> = mutableListOf()
         addAll(reg.syntaxes(SyntaxRegistry.EFFECT), before, candidates)
         addAll(reg.syntaxes(SyntaxRegistry.CONDITION), before, candidates)
         addAll(reg.syntaxes(SyntaxRegistry.EXPRESSION), before, candidates)
@@ -37,7 +37,7 @@ class SignatureHelpProvider {
         val pattern = CompletionProvider.cleanPattern(candidates[0].patterns().iterator().next())
         info.setLabel(pattern)
 
-        val params: MutableList<ParameterInformation> = ArrayList()
+        val params: MutableList<ParameterInformation> = mutableListOf()
         val m: Matcher = typePattern.matcher(pattern)
         var active = 0
         var idx = 0

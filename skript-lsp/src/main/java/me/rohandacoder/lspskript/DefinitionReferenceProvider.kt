@@ -21,12 +21,12 @@ import java.util.regex.Pattern
  */
 class DefinitionReferenceProvider {
 
-    private val documents: MutableMap<String, String> = HashMap()
+    private val documents: MutableMap<String, String> = mutableMapOf()
 
     // function/command name (lowercase) -> location
-    private val definitions: MutableMap<String, Location> = HashMap()
+    private val definitions: MutableMap<String, Location> = mutableMapOf()
     // variable base name -> locations of declarations/usages
-    private val variables: MutableMap<String, MutableList<Location>> = HashMap()
+    private val variables: MutableMap<String, MutableList<Location>> = mutableMapOf()
 
     private val functionDef: Pattern = Pattern.compile("^\\s*function\\s+([a-zA-Z0-9_]+)\\s*\\(")
     private val commandDef: Pattern = Pattern.compile("^\\s*command\\s+/(.+?)\\s*:")
@@ -56,7 +56,7 @@ class DefinitionReferenceProvider {
                 val vm: Matcher = varUsage.matcher(line)
                 while (vm.find()) {
                     val base = baseVarName(vm.group(1))
-                    variables.computeIfAbsent(base) { ArrayList() }.add(Location(uri, LspUtils.lineRange(i)))
+                    variables.computeIfAbsent(base) { mutableListOf() }.add(Location(uri, LspUtils.lineRange(i)))
                 }
             }
         }
@@ -85,7 +85,7 @@ class DefinitionReferenceProvider {
         val word = wordAt(text, position)
         val def = definitions[word.lowercase(Locale.ENGLISH)]
         if (def != null) {
-            val result: MutableList<Location> = ArrayList()
+            val result: MutableList<Location> = mutableListOf()
             if (includeDeclaration) result.add(def)
             // Also include any usage lines referencing the name as a word.
             for ((u, t) in documents) {
@@ -102,7 +102,7 @@ class DefinitionReferenceProvider {
     }
 
     fun workspaceSymbols(query: String?): List<SymbolInformation> {
-        val result: MutableList<SymbolInformation> = ArrayList()
+        val result: MutableList<SymbolInformation> = mutableListOf()
         val q = query?.lowercase(Locale.ENGLISH) ?: ""
         for ((key, value) in definitions) {
             if (key.contains(q)) result.add(SymbolInformation(key, SymbolKind.Function, value))
@@ -114,11 +114,11 @@ class DefinitionReferenceProvider {
         val refs = references(uri, text, position, true)
         if (refs.isEmpty()) return WorkspaceEdit()
 
-        val changes: MutableMap<String, MutableList<TextEdit>> = HashMap()
+        val changes: MutableMap<String, MutableList<TextEdit>> = mutableMapOf()
         for (loc in refs) {
             val r: Range = loc.range
             val edit = TextEdit(r, newName)
-            changes.computeIfAbsent(loc.uri) { ArrayList() }.add(edit)
+            changes.computeIfAbsent(loc.uri) { mutableListOf() }.add(edit)
         }
         val edit = WorkspaceEdit()
         edit.changes = changes

@@ -10,6 +10,7 @@ import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.SymbolKind
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
+import java.util.Locale
 
 /**
  * Builds the outline (document symbols) by walking Skript's public
@@ -19,9 +20,9 @@ class DocumentSymbolProvider {
 
     fun documentSymbols(uri: String, text: String): List<Either<org.eclipse.lsp4j.SymbolInformation, DocumentSymbol>> {
         val config = parseConfig(text) ?: return emptyList()
-        val symbols: MutableList<DocumentSymbol> = ArrayList()
+        val symbols: MutableList<DocumentSymbol> = mutableListOf()
         collect(config, symbols, 0)
-        val result: MutableList<Either<org.eclipse.lsp4j.SymbolInformation, DocumentSymbol>> = ArrayList()
+        val result: MutableList<Either<org.eclipse.lsp4j.SymbolInformation, DocumentSymbol>> = mutableListOf()
         for (s in symbols) result.add(Either.forRight(s))
         return result
     }
@@ -40,7 +41,7 @@ class DocumentSymbolProvider {
             symbol.selectionRange = range
 
             if (node is SectionNode) {
-                val children: MutableList<DocumentSymbol> = ArrayList()
+                val children: MutableList<DocumentSymbol> = mutableListOf()
                 collect(node, children, depth + 1)
                 symbol.children = children
             }

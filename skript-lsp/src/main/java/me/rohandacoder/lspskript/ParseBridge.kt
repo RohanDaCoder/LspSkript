@@ -43,7 +43,7 @@ class ParseBridge {
     private fun doParse(tempFile: File): List<Diagnostic> {
         val handler = RetainingLogHandler()
         handler.start()
-        val before: Set<Script> = HashSet(ScriptLoader.getLoadedScripts())
+        val before: Set<Script> = ScriptLoader.getLoadedScripts().toSet()
         try {
             val files: Set<File> = Collections.singleton(tempFile)
             ScriptLoader.loadScripts(files, OpenCloseable.EMPTY).join()
@@ -55,7 +55,7 @@ class ParseBridge {
             handler.stop()
         }
 
-        val diagnostics: MutableList<Diagnostic> = ArrayList()
+        val diagnostics: MutableList<Diagnostic> = mutableListOf()
         for (entry in handler.log) {
             val d = toDiagnostic(entry)
             if (d != null) diagnostics.add(d)
@@ -65,7 +65,7 @@ class ParseBridge {
         // live set (registered triggers / commands / functions). Note: a temp
         // snippet's `on load` effects may still execute during loading; the
         // unload only prevents the script from staying registered.
-        val loaded: MutableSet<Script> = HashSet(ScriptLoader.getLoadedScripts())
+        val loaded: MutableSet<Script> = ScriptLoader.getLoadedScripts().toMutableSet()
         loaded.removeAll(before)
         if (loaded.isNotEmpty()) {
             ScriptLoader.unloadScripts(loaded)
