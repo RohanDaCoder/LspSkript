@@ -23,6 +23,12 @@ object LspUtils {
     fun lineRange(startLine: Int, endLine: Int): Range =
         Range(Position(startLine, 0), Position(endLine, Int.MAX_VALUE))
 
+    /** Zero-width range at document origin; also used as a "full document" sentinel where the caller replaces the end. */
+    val FULL_RANGE: Range = Range(Position(0, 0), Position(0, 0))
+
+    /** Position representing the very end of the document. */
+    val END_OF_DOC: Position = Position(Int.MAX_VALUE, Int.MAX_VALUE)
+
     /**
      * Runs the given supplier on the Bukkit main thread and returns its result.
      * Skript's parser and all syntax `init()` calls must execute there.
