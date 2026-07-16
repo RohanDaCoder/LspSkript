@@ -9,7 +9,7 @@ description = 'Language Server Protocol backend for the Skript language, reusing
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(25))
     }
 }
 
@@ -38,6 +38,7 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.compilerArgs.add('-Xlint:deprecation')
 }
 
     // Produce a runnable plugin jar (LspSkript.jar) with LSP4J shaded in.

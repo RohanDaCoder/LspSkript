@@ -1,12 +1,16 @@
 # Build artifacts
 .gradle/
 build/
+bin/
 node_modules/
 dist/
 *.vsix
 
-# Test server data (PaperMC world, downloaded jars)
-docker/data/
+# IDE (Eclipse / Gradle)
+*.project
+*.classpath
+.factorypath
+.settings/
 
 # OS / editor
 .DS_Store

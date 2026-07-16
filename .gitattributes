@@ -1,0 +1,31 @@
+# Normalize line endings to LF on checkout/commit for text files.
+* text=auto eol=lf
+
+# Shell scripts must stay LF so they execute on Unix servers.
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Gradle wrapper script is a shell script executed on the server.
+gradlew text eol=lf
+
+# Windows batch files keep CRLF.
+*.bat text eol=crlf
+gradlew.bat text eol=crlf
+
+# Source files.
+*.java text
+*.cson text
+*.json text
+*.js text
+*.md text
+*.yml text
+*.yaml text
+*.gradle text
+*.properties text
+
+# Binary / archive files should never be normalized.
+*.jar binary
+*.vsix binary
+*.png binary
+*.gz binary
+*.zip binary

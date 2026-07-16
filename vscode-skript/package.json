@@ -16,8 +16,9 @@
     ],
     "main": "./dist/extension.js",
     "scripts": {
-        "vscode:prepublish": "bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
-        "build": "bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
+        "vscode:prepublish": "bun run grammar && bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
+        "build": "bun run grammar && bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
+        "grammar": "bun run scripts/copy-grammar.js",
         "package": "vsce package --allow-missing-repository"
     },
     "contributes": {
@@ -67,6 +68,7 @@
     },
     "devDependencies": {
         "@vscode/vsce": "^3.9.2",
-        "bun": "^1.3.0"
+        "bun": "^1.3.0",
+        "cson-parser": "^4.0.9"
     }
 }
