@@ -16,15 +16,15 @@ import java.nio.file.Files
  */
 class FormattingProvider {
 
-    fun formatting(uri: String, text: String): List<out TextEdit> = formatAll(text)
+    fun formatting(uri: String, text: String): List<TextEdit> = formatAll(text)
 
-    fun rangeFormatting(uri: String, text: String, range: Range): List<out TextEdit> {
+    fun rangeFormatting(uri: String, text: String, range: Range): List<TextEdit> {
         // For simplicity, format the whole document (range formatting of an
         // indentation-based language is equivalent to full formatting).
         return formatAll(text)
     }
 
-    private fun formatAll(text: String): List<out TextEdit> {
+    private fun formatAll(text: String): List<TextEdit> {
         val config = DocumentSymbolProvider.parseConfig(text) ?: return emptyList()
         return try {
             val temp = File.createTempFile("skript-format", ".sk")

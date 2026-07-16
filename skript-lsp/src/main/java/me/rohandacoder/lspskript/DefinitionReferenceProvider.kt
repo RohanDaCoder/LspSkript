@@ -62,7 +62,7 @@ class DefinitionReferenceProvider {
         }
     }
 
-    fun definition(uri: String, text: String, position: Position): List<out Location> {
+    fun definition(uri: String, text: String, position: Position): List<Location> {
         val word = wordAt(text, position)
         if (word.isEmpty()) return emptyList()
         val loc = definitions[word.lowercase(Locale.ENGLISH)]
@@ -76,7 +76,7 @@ class DefinitionReferenceProvider {
         return emptyList()
     }
 
-    fun references(uri: String, text: String, position: Position, includeDeclaration: Boolean): List<out Location> {
+    fun references(uri: String, text: String, position: Position, includeDeclaration: Boolean): List<Location> {
         val varBase = variableAtCursor(text, position)
         if (varBase != null) {
             val locs = variables[varBase]

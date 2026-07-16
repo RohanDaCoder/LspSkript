@@ -156,19 +156,19 @@ class SkriptTextDocumentService : TextDocumentService {
     }
 
     @JsonRequest("textDocument/definition")
-    override fun definition(params: DefinitionParams): CompletableFuture<Either<List<out Location>, List<out LocationLink>>> {
+    override fun definition(params: DefinitionParams): CompletableFuture<Either<List<Location>, List<LocationLink>>> {
         return CompletableFutures.computeAsync { cancelToken ->
             cancelToken.checkCanceled()
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync Either.forLeft(emptyList<Location>())
-            val locations: List<out Location> = definitionReferenceProvider.definition(uri, text, params.position)
+            val locations: List<Location> = definitionReferenceProvider.definition(uri, text, params.position)
             Either.forLeft(locations)
         }
     }
 
     @JsonRequest("textDocument/references")
-    override fun references(params: ReferenceParams): CompletableFuture<List<out Location>> {
+    override fun references(params: ReferenceParams): CompletableFuture<List<Location>> {
         return CompletableFutures.computeAsync { cancelToken ->
             cancelToken.checkCanceled()
             val uri = params.textDocument.uri
@@ -190,7 +190,7 @@ class SkriptTextDocumentService : TextDocumentService {
     }
 
     @JsonRequest("textDocument/formatting")
-    override fun formatting(params: DocumentFormattingParams): CompletableFuture<List<out TextEdit>> {
+    override fun formatting(params: DocumentFormattingParams): CompletableFuture<List<TextEdit>> {
         return CompletableFutures.computeAsync { cancelToken ->
             cancelToken.checkCanceled()
             val uri = params.textDocument.uri
@@ -201,7 +201,7 @@ class SkriptTextDocumentService : TextDocumentService {
     }
 
     @JsonRequest("textDocument/rangeFormatting")
-    override fun rangeFormatting(params: DocumentRangeFormattingParams): CompletableFuture<List<out TextEdit>> {
+    override fun rangeFormatting(params: DocumentRangeFormattingParams): CompletableFuture<List<TextEdit>> {
         return CompletableFutures.computeAsync { cancelToken ->
             cancelToken.checkCanceled()
             val uri = params.textDocument.uri

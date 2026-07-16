@@ -26,7 +26,7 @@ class SkriptWorkspaceService(private val textService: SkriptTextDocumentService)
     }
 
     @JsonRequest("workspace/symbol")
-    override fun symbol(params: WorkspaceSymbolParams): CompletableFuture<Either<List<out SymbolInformation>, List<out WorkspaceSymbol>>> {
+    override fun symbol(params: WorkspaceSymbolParams): CompletableFuture<Either<List<SymbolInformation>, List<WorkspaceSymbol>>> {
         return CompletableFutures.computeAsync { cancelToken ->
             cancelToken.checkCanceled()
             val result = textService.workspaceSymbols(params.query)
