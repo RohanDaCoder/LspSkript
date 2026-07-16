@@ -15,7 +15,7 @@ import java.util.*
 class CodeActionProvider {
 
     fun codeAction(uri: String, text: String, params: CodeActionParams): List<Either<Command, CodeAction>> {
-        val actions: MutableList<Either<Command, CodeAction>> = ArrayList()
+        val actions: MutableList<Either<Command, CodeAction>> = mutableListOf()
 
         for (diagnostic in params.context.diagnostics) {
             val message = diagnostic.message.lowercase(Locale.ENGLISH)
@@ -48,7 +48,7 @@ class CodeActionProvider {
         val action = CodeAction(title)
         action.kind = CodeActionKind.QuickFix
         action.diagnostics = listOf(diagnostic)
-        val changes: MutableMap<String, List<TextEdit>> = HashMap()
+        val changes: MutableMap<String, List<TextEdit>> = mutableMapOf()
         changes[uri] = listOf(edit)
         val we = WorkspaceEdit()
         we.changes = changes
@@ -62,10 +62,6 @@ class CodeActionProvider {
         // Preserve indentation.
         val indent = CompletionProvider.indentOf(existing)
         val indentStr = existing.substring(0, indent)
-        var insertPos = 0
-        for (i in text.indices) {
-            // approximate: not perfectly accurate, but adequate for a quick fix
-        }
         val range: Range = LspUtils.lineRange(line)
         val edit = TextEdit(range, indentStr + insertion + existing.substring(indent) + "\n")
         return edit
