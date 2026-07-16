@@ -72,6 +72,35 @@ produced at `skript-lsp/build/libs/`.
 
 > Windows users: use `gradlew.bat` instead of `./gradlew`.
 
+## Releasing
+
+Releases are cut from your own machine using the `release` task in the
+`skript-lsp` module. It bumps the version in `gradle.properties`, builds the
+shadow jar, commits + tags, and creates a GitHub release (with the jar attached)
+via the `gh` CLI. Make sure you are authenticated (`gh auth login`) and on a
+clean `main`.
+
+```sh
+# Patch bump (default) + build + tag + GitHub release
+./gradlew :skript-lsp:release
+
+# Minor / major bump
+./gradlew :skript-lsp:release -Ppart=minor
+./gradlew :skript-lsp:release -Ppart=major
+
+# Explicit version
+./gradlew :skript-lsp:release "-PreleaseVersion=1.2.3"
+
+# Preview only — no commit, tag, or gh call
+./gradlew :skript-lsp:release -PdryRun
+
+# Just see what the next version would be
+./gradlew :skript-lsp:printNextVersion -Ppart=minor
+```
+
+The version lives in `skriptLspVersion` in the root `gradle.properties`; tags
+and GitHub releases are published as `v<version>`.
+
 ## Setup
 
 1. Build `skript-lsp` (above) and drop `LspSkript-0.1.0.jar` into your server's
