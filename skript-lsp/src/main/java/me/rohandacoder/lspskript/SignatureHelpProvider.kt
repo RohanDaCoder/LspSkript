@@ -76,11 +76,7 @@ class SignatureHelpProvider {
         val words = before.trim().split("\\s+".toRegex()).toTypedArray()
         if (words.isEmpty()) return false
         val take = Math.min(3, words.size)
-        val tail = StringBuilder()
-        for (i in words.size - take until words.size) {
-            if (i > words.size - take) tail.append(' ')
-            tail.append(words[i])
-        }
+        val tail = words.takeLast(take).joinToString(" ")
         return pattern.contains(tail.toString().trim())
     }
 }

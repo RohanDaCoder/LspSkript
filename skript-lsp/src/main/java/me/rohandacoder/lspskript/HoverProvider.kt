@@ -30,11 +30,12 @@ class HoverProvider {
 
         if (matches.isEmpty()) return null
 
-        val md = StringBuilder()
-        for (info in matches) {
-            md.append("### ").append(if (info.origin() == null) "Skript" else info.origin()).append("\n\n")
-            for (pattern in info.patterns()) {
-                md.append("`").append(CompletionProvider.cleanPattern(pattern)).append("`\n\n")
+        val md = buildString {
+            for (info in matches) {
+                append("### ${info.origin() ?: "Skript"}\n\n")
+                for (pattern in info.patterns()) {
+                    append("`${CompletionProvider.cleanPattern(pattern)}`\n\n")
+                }
             }
         }
         val hover = Hover()
