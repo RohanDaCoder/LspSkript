@@ -104,17 +104,18 @@ class SkriptTextDocumentService : TextDocumentService {
         val endLine = range.end.line
         val endChar = range.end.character
 
-        val sb = StringBuilder()
-        for (i in 0 until startLine) sb.append(lines[i]).append('\n')
-        val startLineText = lines[startLine]
-        sb.append(startLineText, 0, Math.min(startChar, startLineText.length))
-        sb.append(replacement)
-        if (endLine < lines.size) {
-            val endLineText = lines[endLine]
-            sb.append(endLineText, Math.min(endChar, endLineText.length), endLineText.length)
-            for (i in endLine + 1 until lines.size) sb.append('\n').append(lines[i])
+        val sb = buildString {
+            for (i in 0 until startLine) append(lines[i]).append('\n')
+            val startLineText = lines[startLine]
+            append(startLineText, 0, Math.min(startChar, startLineText.length))
+            append(replacement)
+            if (endLine < lines.size) {
+                val endLineText = lines[endLine]
+                append(endLineText, Math.min(endChar, endLineText.length), endLineText.length)
+                for (i in endLine + 1 until lines.size) append('\n').append(lines[i])
+            }
         }
-        return sb.toString()
+        return sb
     }
 
     // ---------------------------------------------------------------------
