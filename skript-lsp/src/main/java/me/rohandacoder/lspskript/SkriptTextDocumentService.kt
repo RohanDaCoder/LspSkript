@@ -52,15 +52,15 @@ class SkriptTextDocumentService : TextDocumentService {
     @JsonNotification("textDocument/didChange")
     override fun didChange(params: DidChangeTextDocumentParams) {
         val uri = params.textDocument.uri
-        var text = documents[uri]
+        var text = documents[uri] ?: return
         for (change in params.contentChanges) {
             text = if (change.range != null) {
-                applyRangeEdit(text!!, change.range, change.text)
+                applyRangeEdit(text, change.range, change.text)
             } else {
                 change.text
             }
         }
-        documents[uri] = text!!
+        documents[uri] = text
         republishDiagnostics(uri, text)
     }
 
@@ -76,9 +76,7 @@ class SkriptTextDocumentService : TextDocumentService {
         val uri = params.textDocument.uri
         documents.remove(uri)
         // Clear diagnostics for the closed file.
-        if (client != null) {
-            client!!.publishDiagnostics(PublishDiagnosticsParams(uri, emptyList()))
-        }
+        client?.publishDiagnostics(PublishDiagnosticsParams(uri, emptyList()))
     }
 
     fun onWatchedFilesChanged(params: DidChangeWatchedFilesParams) {
@@ -93,9 +91,9 @@ class SkriptTextDocumentService : TextDocumentService {
     }
 
     private fun republishDiagnostics(uri: String, text: String) {
-        if (client == null) return
+        val client = client ?: return
         val diagnostics: List<Diagnostic> = parseBridge.parse(uri, text)
-        client!!.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
+        client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
         definitionReferenceProvider.index(uri, text)
     }
 
