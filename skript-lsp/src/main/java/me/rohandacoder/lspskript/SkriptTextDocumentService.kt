@@ -23,108 +23,18 @@ class SkriptTextDocumentService : TextDocumentService {
     private var client: LanguageClient? = null
 
     // Feature providers (lazy-initialised against the live Skript runtime).
-    @Volatile
-    private var parseBridge: ParseBridge? = null
-    @Volatile
-    private var completionProvider: CompletionProvider? = null
-    @Volatile
-    private var hoverProvider: HoverProvider? = null
-    @Volatile
-    private var signatureHelpProvider: SignatureHelpProvider? = null
-    @Volatile
-    private var documentSymbolProvider: DocumentSymbolProvider? = null
-    @Volatile
-    private var definitionReferenceProvider: DefinitionReferenceProvider? = null
-    @Volatile
-    private var formattingProvider: FormattingProvider? = null
-    @Volatile
-    private var renameProvider: RenameProvider? = null
-    @Volatile
-    private var codeActionProvider: CodeActionProvider? = null
+    private val parseBridge: ParseBridge by lazy { ParseBridge() }
+    private val completionProvider: CompletionProvider by lazy { CompletionProvider() }
+    private val hoverProvider: HoverProvider by lazy { HoverProvider() }
+    private val signatureHelpProvider: SignatureHelpProvider by lazy { SignatureHelpProvider() }
+    private val documentSymbolProvider: DocumentSymbolProvider by lazy { DocumentSymbolProvider() }
+    private val definitionReferenceProvider: DefinitionReferenceProvider by lazy { DefinitionReferenceProvider() }
+    private val formattingProvider: FormattingProvider by lazy { FormattingProvider() }
+    private val renameProvider: RenameProvider by lazy { RenameProvider() }
+    private val codeActionProvider: CodeActionProvider by lazy { CodeActionProvider() }
 
     fun connect(client: LanguageClient) {
         this.client = client
-    }
-
-    private fun parseBridge(): ParseBridge {
-        if (parseBridge == null) {
-            synchronized(this) {
-                if (parseBridge == null) parseBridge = ParseBridge()
-            }
-        }
-        return parseBridge!!
-    }
-
-    private fun completionProvider(): CompletionProvider {
-        if (completionProvider == null) {
-            synchronized(this) {
-                if (completionProvider == null) completionProvider = CompletionProvider()
-            }
-        }
-        return completionProvider!!
-    }
-
-    private fun hoverProvider(): HoverProvider {
-        if (hoverProvider == null) {
-            synchronized(this) {
-                if (hoverProvider == null) hoverProvider = HoverProvider()
-            }
-        }
-        return hoverProvider!!
-    }
-
-    private fun signatureHelpProvider(): SignatureHelpProvider {
-        if (signatureHelpProvider == null) {
-            synchronized(this) {
-                if (signatureHelpProvider == null) signatureHelpProvider = SignatureHelpProvider()
-            }
-        }
-        return signatureHelpProvider!!
-    }
-
-    private fun documentSymbolProvider(): DocumentSymbolProvider {
-        if (documentSymbolProvider == null) {
-            synchronized(this) {
-                if (documentSymbolProvider == null) documentSymbolProvider = DocumentSymbolProvider()
-            }
-        }
-        return documentSymbolProvider!!
-    }
-
-    private fun definitionReferenceProvider(): DefinitionReferenceProvider {
-        if (definitionReferenceProvider == null) {
-            synchronized(this) {
-                if (definitionReferenceProvider == null) definitionReferenceProvider = DefinitionReferenceProvider()
-            }
-        }
-        return definitionReferenceProvider!!
-    }
-
-    private fun formattingProvider(): FormattingProvider {
-        if (formattingProvider == null) {
-            synchronized(this) {
-                if (formattingProvider == null) formattingProvider = FormattingProvider()
-            }
-        }
-        return formattingProvider!!
-    }
-
-    private fun renameProvider(): RenameProvider {
-        if (renameProvider == null) {
-            synchronized(this) {
-                if (renameProvider == null) renameProvider = RenameProvider()
-            }
-        }
-        return renameProvider!!
-    }
-
-    private fun codeActionProvider(): CodeActionProvider {
-        if (codeActionProvider == null) {
-            synchronized(this) {
-                if (codeActionProvider == null) codeActionProvider = CodeActionProvider()
-            }
-        }
-        return codeActionProvider!!
     }
 
     // ---------------------------------------------------------------------
@@ -177,16 +87,16 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = event.uri
             if (documents.containsKey(uri)) {
                 // Content changed externally; we can't read it here, but clear cache.
-                parseBridge().invalidate(uri)
+                parseBridge.invalidate(uri)
             }
         }
     }
 
     private fun republishDiagnostics(uri: String, text: String) {
         if (client == null) return
-        val diagnostics: List<Diagnostic> = parseBridge().parse(uri, text)
+        val diagnostics: List<Diagnostic> = parseBridge.parse(uri, text)
         client!!.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
-        definitionReferenceProvider().index(uri, text)
+        definitionReferenceProvider.index(uri, text)
     }
 
     private fun applyRangeEdit(text: String, range: Range, replacement: String): String {
@@ -220,7 +130,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync Either.forLeft(emptyList<CompletionItem>())
-            val items = completionProvider().complete(uri, text, params.position)
+            val items = completionProvider.complete(uri, text, params.position)
             Either.forLeft(items)
         }
     }
@@ -232,7 +142,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync null
-            hoverProvider().hover(uri, text, params.position)
+            hoverProvider.hover(uri, text, params.position)
         }
     }
 
@@ -243,7 +153,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync null
-            signatureHelpProvider().signatureHelp(uri, text, params.position)
+            signatureHelpProvider.signatureHelp(uri, text, params.position)
         }
     }
 
@@ -254,7 +164,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync Either.forLeft(emptyList<Location>())
-            val locations: List<out Location> = definitionReferenceProvider().definition(uri, text, params.position)
+            val locations: List<out Location> = definitionReferenceProvider.definition(uri, text, params.position)
             Either.forLeft(locations)
         }
     }
@@ -266,7 +176,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync emptyList<Location>()
-            definitionReferenceProvider().references(uri, text, params.position, params.context.isIncludeDeclaration)
+            definitionReferenceProvider.references(uri, text, params.position, params.context.isIncludeDeclaration)
         }
     }
 
@@ -277,7 +187,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync emptyList<Either<SymbolInformation, DocumentSymbol>>()
-            documentSymbolProvider().documentSymbols(uri, text)
+            documentSymbolProvider.documentSymbols(uri, text)
         }
     }
 
@@ -288,7 +198,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync emptyList<TextEdit>()
-            formattingProvider().formatting(uri, text)
+            formattingProvider.formatting(uri, text)
         }
     }
 
@@ -299,7 +209,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync emptyList<TextEdit>()
-            formattingProvider().rangeFormatting(uri, text, params.range)
+            formattingProvider.rangeFormatting(uri, text, params.range)
         }
     }
 
@@ -310,7 +220,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync WorkspaceEdit()
-            renameProvider().rename(uri, text, params.position, params.newName)
+            renameProvider.rename(uri, text, params.position, params.newName)
         }
     }
 
@@ -321,12 +231,12 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync emptyList<Either<Command, CodeAction>>()
-            codeActionProvider().codeAction(uri, text, params)
+            codeActionProvider.codeAction(uri, text, params)
         }
     }
 
     fun workspaceSymbols(query: String?): List<SymbolInformation> {
-        return definitionReferenceProvider().workspaceSymbols(query)
+        return definitionReferenceProvider.workspaceSymbols(query)
     }
 
     fun getDocument(uri: String): String? = documents[uri]
