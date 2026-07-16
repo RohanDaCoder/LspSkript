@@ -59,6 +59,7 @@ tasks.withType<JavaCompile>().configureEach {
 // Skript and the Paper API are compileOnly and are provided by the server.
 tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
     archiveBaseName.set("LspSkript")
+    archiveVersion.set(providers.gradleProperty("skriptLspVersion"))
     archiveClassifier.set("")
     manifest {
         attributes(
@@ -76,7 +77,7 @@ tasks.named<org.gradle.jvm.tasks.Jar>("jar") { enabled = false }
 
 tasks.named<ProcessResources>("processResources") {
     filesMatching("paper-plugin.yml") {
-        expand("version" to project.version)
+        expand("version" to providers.gradleProperty("skriptLspVersion").get())
     }
 }
 
@@ -86,7 +87,7 @@ tasks.named<ProcessResources>("processResources") {
 //   ./gradlew :skript-lsp:release                 # patch bump
 //   ./gradlew :skript-lsp:release -Ppart=minor
 //   ./gradlew :skript-lsp:release -Ppart=major
-//   ./gradlew :skript-lsp:release -Pversion=1.2.3 # explicit version
+//   ./gradlew :skript-lsp:release -PreleaseVersion=1.2.3  # explicit version
 //   ./gradlew :skript-lsp:release -PdryRun        # compute + build, no commit/tag/gh
 // ---------------------------------------------------------------------------
 
@@ -99,7 +100,12 @@ val execOps = objects.newInstance<InjectedExecOps>().execOps
 
 val versionKey = "skriptLspVersion"
 val gradlePropsFile = rootProject.file("gradle.properties")
-val currentVersion: String = project.property("skriptLspVersion") as String
+
+fun readVersion(): String {
+    val m = Pattern.compile("""(?m)^$versionKey=(.+)""").matcher(gradlePropsFile.readText())
+    require(m.find()) { "$versionKey not found in gradle.properties" }
+    return m.group(1).trim()
+}
 
 fun parseVersion(v: String): Triple<Int, Int, Int> {
     val m = Pattern.compile("""(\d+)\.(\d+)\.(\d+)""").matcher(v)
@@ -117,10 +123,10 @@ fun bump(v: String, part: String): String {
     }
 }
 
-val nextVersion: String = if (project.hasProperty("releaseVersion")) {
+fun nextVersionFromProps(): String = if (project.hasProperty("releaseVersion")) {
     (project.property("releaseVersion") as String).also { parseVersion(it) }
 } else {
-    bump(currentVersion, project.findProperty("part") as? String ?: "patch")
+    bump(readVersion(), project.findProperty("part") as? String ?: "patch")
 }
 
 val dryRun: Boolean = project.hasProperty("dryRun")
@@ -128,40 +134,70 @@ val dryRun: Boolean = project.hasProperty("dryRun")
 tasks.register("printNextVersion") {
     group = "release"
     description = "Print the version a release would produce."
-    doLast { println(nextVersion) }
+    doLast { println(nextVersionFromProps()) }
+}
+
+tasks.register("bumpVersion") {
+    group = "release"
+    description = "Write the next version into gradle.properties (no build/tag/gh)."
+    doLast {
+        val next = nextVersionFromProps()
+        writeVersion(next)
+        println("Version set to $next")
+    }
+}
+
+fun writeVersion(next: String) {
+    val propsText = gradlePropsFile.readText()
+    val updated = Pattern.compile("""(?m)^$versionKey=.*$""")
+        .matcher(propsText)
+        .replaceFirst("$versionKey=$next")
+    check(updated.contains("$versionKey=$next")) {
+        "Failed to write $versionKey into gradle.properties"
+    }
+    gradlePropsFile.writeText(updated)
 }
 
 tasks.register("release") {
     group = "release"
     description = "Bump version, build the shadowJar, tag, and create a GitHub release via gh."
-    dependsOn("shadowJar")
+
+    doFirst {
+        // Bump the version first so the subsequently-built jar carries it.
+        if (!dryRun) {
+            writeVersion(nextVersionFromProps())
+        }
+    }
 
     doLast {
-        val tag = "v$nextVersion"
-        val jar = tasks.named("shadowJar").get().outputs.files.singleFile
-        require(jar.exists()) { "Shadow jar not found at $jar" }
+        val tag = "v${readVersion()}"
 
         if (dryRun) {
-            println("[dryRun] Would release $tag and publish GitHub release with ${jar.name}.")
+            println("[dryRun] Would release $tag and build LspSkript-$tag.jar, then tag + gh release.")
             return@doLast
         }
 
-        // 1. Persist the new version into gradle.properties.
-        val propsText = gradlePropsFile.readText()
-        val updated = Pattern.compile("""(?m)^$versionKey=.*$""")
-            .matcher(propsText)
-            .replaceFirst("$versionKey=$nextVersion")
-        check(updated.contains("$versionKey=$nextVersion")) {
-            "Failed to write $versionKey into gradle.properties"
+        // Build the jar AFTER the version bump (nested invocation so the
+        // version written above is picked up by shadowJar's archive version).
+        val isWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
+        execOps.exec {
+            commandLine(
+                if (isWindows) rootProject.projectDir.resolve("gradlew.bat").path else "./gradlew",
+                ":skript-lsp:shadowJar",
+                "--no-daemon"
+            )
         }
-        gradlePropsFile.writeText(updated)
 
-        // 2. Commit + tag.
+        val jar = layout.buildDirectory.file("libs/LspSkript-${readVersion()}.jar").get().asFile
+        require(jar.exists()) { "Shadow jar not found at $jar" }
+
+        // Commit + tag, then push so the tag is available for the GitHub release.
         execOps.exec { commandLine("git", "add", gradlePropsFile.path) }
         execOps.exec { commandLine("git", "commit", "-m", "chore: release $tag") }
         execOps.exec { commandLine("git", "tag", "-a", tag, "-m", "Release $tag") }
+        execOps.exec { commandLine("git", "push", "origin", "HEAD", "--tags") }
 
-        // 3. Create the GitHub release and upload the jar.
+        // Create the GitHub release and upload the jar.
         execOps.exec {
             commandLine(
                 "gh", "release", "create", tag,

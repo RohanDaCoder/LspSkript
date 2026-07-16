@@ -81,7 +81,7 @@ via the `gh` CLI. Make sure you are authenticated (`gh auth login`) and on a
 clean `main`.
 
 ```sh
-# Patch bump (default) + build + tag + GitHub release
+# Patch bump (default) + build + commit + tag + push + GitHub release
 ./gradlew :skript-lsp:release
 
 # Minor / major bump
@@ -91,15 +91,19 @@ clean `main`.
 # Explicit version
 ./gradlew :skript-lsp:release "-PreleaseVersion=1.2.3"
 
-# Preview only — no commit, tag, or gh call
+# Preview only — no commit, tag, push, or gh call
 ./gradlew :skript-lsp:release -PdryRun
+
+# Just write the next version into gradle.properties (no build/tag/gh)
+./gradlew :skript-lsp:bumpVersion -Ppart=minor
 
 # Just see what the next version would be
 ./gradlew :skript-lsp:printNextVersion -Ppart=minor
 ```
 
 The version lives in `skriptLspVersion` in the root `gradle.properties`; tags
-and GitHub releases are published as `v<version>`.
+and GitHub releases are published as `v<version>`. Requires the `gh` CLI to be
+authenticated (`gh auth login`).
 
 ## Setup
 
