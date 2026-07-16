@@ -101,6 +101,7 @@ class DefinitionReferenceProvider {
         return emptyList()
     }
 
+    @Suppress("DEPRECATION")
     fun workspaceSymbols(query: String?): List<SymbolInformation> {
         val result: MutableList<SymbolInformation> = mutableListOf()
         val q = query?.lowercase(Locale.ENGLISH) ?: ""

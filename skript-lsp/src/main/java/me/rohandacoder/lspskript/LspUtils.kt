@@ -50,15 +50,6 @@ object LspUtils {
         }
     }
 
-    /** Variant for void callables. */
-    @Suppress("UNCHECKED_CAST")
-    fun onMainThread(runnable: Runnable) {
-        onMainThread(Supplier<Void> {
-            runnable.run()
-            null as Void
-        })
-    }
-
     fun <T> call(callable: Callable<T>): T {
         return onMainThread(Supplier { callable.call() })
     }
