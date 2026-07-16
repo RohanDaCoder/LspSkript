@@ -53,6 +53,7 @@ tasks.withType(JavaCompile).configureEach {
     // Skript and the Paper API are compileOnly and are provided by the server.
     shadowJar {
         archiveBaseName.set('LspSkript')
+        archiveClassifier.set('')
         manifest {
             attributes(
                 'Name': 'me/rohandacoder/lspskript',
