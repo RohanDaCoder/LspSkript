@@ -103,7 +103,7 @@ class CompletionProvider {
         addFrom(reg.syntaxes(SyntaxRegistry.EXPRESSION), items, prefix, CompletionItemKind.Field)
     }
 
-    private fun addFrom(infos: Collection<out SyntaxInfo<*>>, items: MutableList<CompletionItem>, prefix: String, kind: CompletionItemKind) {
+    private fun addFrom(infos: Collection<SyntaxInfo<*>>, items: MutableList<CompletionItem>, prefix: String, kind: CompletionItemKind) {
         for (info in infos) {
             for (pattern in info.patterns()) {
                 val cleaned = cleanPattern(pattern)

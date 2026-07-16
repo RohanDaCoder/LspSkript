@@ -57,7 +57,7 @@ class SignatureHelpProvider {
         return help
     }
 
-    private fun addAll(infos: Collection<out SyntaxInfo<*>>, before: String, out: MutableList<SyntaxInfo<*>>) {
+    private fun addAll(infos: Collection<SyntaxInfo<*>>, before: String, out: MutableList<SyntaxInfo<*>>) {
         val lowerBefore = before.lowercase(Locale.ENGLISH)
         for (info in infos) {
             for (pattern in info.patterns()) {
@@ -77,6 +77,6 @@ class SignatureHelpProvider {
         if (words.isEmpty()) return false
         val take = Math.min(3, words.size)
         val tail = words.takeLast(take).joinToString(" ")
-        return pattern.contains(tail.toString().trim())
+        return pattern.contains(tail.trim())
     }
 }

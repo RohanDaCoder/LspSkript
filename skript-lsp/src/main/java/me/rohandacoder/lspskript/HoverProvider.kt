@@ -39,12 +39,12 @@ class HoverProvider {
             }
         }
         val hover = Hover()
-        hover.setContents(MarkupContent(MarkupKind.MARKDOWN, md.toString()))
+        hover.setContents(MarkupContent(MarkupKind.MARKDOWN, md))
         hover.range = CompletionProvider.wordRange(CompletionProvider.lineAt(text, position.line), position.character)
         return hover
     }
 
-    private fun collect(infos: Collection<out SyntaxInfo<*>>, word: String, out: MutableList<SyntaxInfo<*>>) {
+    private fun collect(infos: Collection<SyntaxInfo<*>>, word: String, out: MutableList<SyntaxInfo<*>>) {
         val lower = word.lowercase(Locale.ENGLISH)
         for (info in infos) {
             for (pattern in info.patterns()) {

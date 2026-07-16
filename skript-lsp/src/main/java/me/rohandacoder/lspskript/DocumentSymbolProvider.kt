@@ -10,7 +10,6 @@ import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.SymbolKind
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
-import java.util.Locale
 
 /**
  * Builds the outline (document symbols) by walking Skript's public
