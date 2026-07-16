@@ -39,8 +39,6 @@ class SignatureHelpProvider {
 
         val params: MutableList<ParameterInformation> = mutableListOf()
         val m: Matcher = typePattern.matcher(pattern)
-        var active = 0
-        var idx = 0
         var cursorTypesSeen = 0
         while (m.find()) {
             val type = m.group(1).replace("[-@0-9]".toRegex(), "").trim()
@@ -49,7 +47,6 @@ class SignatureHelpProvider {
             params.add(pi)
             // crude active-parameter detection: count %...% openings before cursor
             if (m.start() <= before.length) cursorTypesSeen++
-            idx++
         }
         info.parameters = params
 
