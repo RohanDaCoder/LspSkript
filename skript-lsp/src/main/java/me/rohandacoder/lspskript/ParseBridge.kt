@@ -32,7 +32,15 @@ import java.util.logging.Level
 class ParseBridge {
 
     private val tempFiles: MutableMap<String, File> = WeakHashMap()
-    private var lspDir: File? = null
+    private val lspDir: File by lazy {
+        try {
+            Files.createTempDirectory("lspskript").toFile()
+        } catch (e: IOException) {
+            val fallback = File(System.getProperty("java.io.tmpdir"), "lspskript")
+            fallback.mkdirs()
+            fallback
+        }
+    }
 
     /** Parse the given content and return diagnostics mapped from Skript's log. */
     fun parse(uri: String, content: String): List<Diagnostic> {
@@ -82,11 +90,8 @@ class ParseBridge {
             else -> DiagnosticSeverity.Information
         }
 
-        var line = 0
         val node = entry.node
-        if (node != null && node.line > 0) {
-            line = node.line - 1
-        }
+        val line = if (node != null && node.line > 0) node.line - 1 else 0
 
         val range: Range = LspUtils.lineRange(line)
         val diagnostic = Diagnostic(range, entry.message ?: "")
@@ -98,24 +103,11 @@ class ParseBridge {
         return diagnostic
     }
 
-    private fun lspDir(): File {
-        if (lspDir == null) {
-            lspDir = try {
-                Files.createTempDirectory("lspskript").toFile()
-            } catch (e: IOException) {
-                val fallback = File(System.getProperty("java.io.tmpdir"), "lspskript")
-                fallback.mkdirs()
-                fallback
-            }
-        }
-        return lspDir!!
-    }
-
     private fun prepareTempFile(uri: String, content: String): File? {
         return try {
             // IMPORTANT: write outside Skript's scripts folder so the server
             // never auto-loads these temp files on (re)start.
-            val dir = lspDir()
+            val dir = lspDir
             val name = sanitize(uri) + ".sk"
             val tempFile = File(dir, name)
             Files.write(tempFile.toPath(), content.toByteArray(StandardCharsets.UTF_8))
