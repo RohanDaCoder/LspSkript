@@ -180,6 +180,13 @@ val pluginName: String =
     }
 
 fun lastReleaseTag(): String? {
+    // Keep local tags in sync with the remote so releases always compare
+    // against the newest tag, even on a fresh clone or after another machine
+    // tagged. Fetch failure (no remote/network) is fine: fall back to local.
+    execOps.exec {
+        commandLine("git", "fetch", "--tags", "--quiet")
+        isIgnoreExitValue = true
+    }
     val out = ByteArrayOutputStream()
     execOps.exec {
         commandLine("git", "tag", "--list", "v*.*.*", "--sort=-v:refname")
@@ -235,7 +242,7 @@ fun buildReleaseNotes(tag: String, prevOverride: String? = null): String {
     }
     if (prev != null) {
         sb.appendLine()
-        sb.appendLine("[Compare $prev...$tag]($repoUrl/compare/$prev...$tag)")
+        sb.appendLine("[Changes since $prev]($repoUrl/compare/$prev...$tag)")
     }
     return sb.toString().trimEnd()
 }
