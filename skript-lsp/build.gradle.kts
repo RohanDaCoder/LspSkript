@@ -172,6 +172,20 @@ val minecraftVersion: String =
         if (m.find()) m.group(1) else "unknown"
     }
 
+val pluginName: String =
+    run {
+        val yml = file("src/main/resources/paper-plugin.yml").readText()
+        val m = Pattern.compile("""(?m)^name:\s*(.+)$""").matcher(yml)
+        if (m.find()) m.group(1).trim() else "unknown"
+    }
+
+val pluginMainClass: String =
+    run {
+        val yml = file("src/main/resources/paper-plugin.yml").readText()
+        val m = Pattern.compile("""(?m)^main:\s*(.+)$""").matcher(yml)
+        if (m.find()) m.group(1).trim() else "unknown"
+    }
+
 fun lastReleaseTag(): String? {
     val out = ByteArrayOutputStream()
     execOps.exec {
@@ -181,21 +195,15 @@ fun lastReleaseTag(): String? {
     return out.toString().trim().lineSequence().firstOrNull()
 }
 
-fun commitsSince(tag: String?): List<Pair<String, String>> {
+fun commitsSince(tag: String?): List<String> {
     val range = if (tag != null) "$tag..HEAD" else "HEAD"
     val out = ByteArrayOutputStream()
     execOps.exec {
-        commandLine("git", "log", "--pretty=format:%H %s", range)
+        commandLine("git", "log", "--pretty=format:%s", range)
         standardOutput = out
     }
     return out.toString().trim().lineSequence()
         .filter { it.isNotBlank() }
-        .map { line ->
-            val space = line.indexOf(' ')
-            val hash = line.substring(0, space)
-            val subject = line.substring(space + 1)
-            hash to subject
-        }
         .toList()
 }
 
@@ -206,16 +214,23 @@ fun buildReleaseNotes(tag: String): String {
     val sb = StringBuilder()
     sb.appendLine("## LspSkript $tag")
     sb.appendLine()
-    sb.appendLine("**Targets:** Skript $skriptVersion · Minecraft $minecraftVersion")
+    sb.appendLine("**Plugin:** $pluginName ${tag.removePrefix("v")}")
+    sb.appendLine("**Main class:** $pluginMainClass")
+    sb.appendLine("**Paper API:** $minecraftVersion")
+    sb.appendLine("**Skript:** $skriptVersion (required, loaded before the plugin)")
     sb.appendLine()
     sb.appendLine("### Changes since ${prev ?: "the beginning"}")
     sb.appendLine()
     if (commits.isEmpty()) {
         sb.appendLine("_No commits since the last release._")
     } else {
-        for ((hash, subject) in commits) {
-            sb.appendLine("- [$hash]($repoUrl/commit/$hash) $subject")
+        for (subject in commits) {
+            sb.appendLine("- $subject")
         }
+    }
+    if (prev != null) {
+        sb.appendLine()
+        sb.appendLine("[Compare $prev...$tag]($repoUrl/compare/$prev...$tag)")
     }
     return sb.toString().trimEnd()
 }
@@ -232,7 +247,9 @@ tasks.register("release") {
     }
 
     doLast {
-        val tag = "v${readVersion()}"
+        // Dry-run preview targets the *next* version so the notes show exactly
+        // what a real release would contain (commits since the last tag).
+        val tag = if (dryRun) "v${nextVersionFromProps()}" else "v${readVersion()}"
 
         if (dryRun) {
             println("[dryRun] Would release $tag and build LspSkript-$tag.jar, then tag + gh release.")
