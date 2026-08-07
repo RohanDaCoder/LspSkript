@@ -18,6 +18,33 @@ class UpdateNotifierTest {
     }
 
     @Test
+    fun parseTagNameMatchesRealApiResponse() {
+        // Faithful excerpt of the actual /releases/latest response shape:
+        // tag_name is a top-level string, name repeats it, assets use their own
+        // "name" field, and the body contains arbitrary markdown.
+        val body = """
+            {
+              "url": "https://api.github.com/repos/RohanDaCoder/LspSkript/releases/366837029",
+              "tag_name": "v0.1.2",
+              "target_commitish": "main",
+              "name": "v0.1.2",
+              "draft": false,
+              "prerelease": false,
+              "created_at": "2026-08-07T15:05:02Z",
+              "published_at": "2026-08-07T15:21:11Z",
+              "assets": [
+                {
+                  "name": "LspSkript-0.1.2.jar",
+                  "state": "uploaded"
+                }
+              ],
+              "body": "## LspSkript v0.1.2\n\n**Plugin:** lspskript 0.1.2\n[Changes since v0.1.1](https://github.com/RohanDaCoder/LspSkript/compare/v0.1.1...v0.1.2)\n"
+            }
+        """.trimIndent()
+        assertEquals("v0.1.2", notifier.parseTagName(body))
+    }
+
+    @Test
     fun parseTagNameReturnsNullWithoutMatch() {
         assertNull(notifier.parseTagName("""{"message":"Not Found"}"""))
     }
