@@ -195,6 +195,10 @@ fun lastReleaseTag(): String? {
     return out.toString().trim().lineSequence().firstOrNull()
 }
 
+// Release commits ("chore: release vX.Y.Z") are noise in the changelog: they
+// are created by the release task itself, after the previous tag.
+val releaseCommitPattern: Pattern = Pattern.compile("""chore: release v\d+\.\d+\.\d+""")
+
 fun commitsSince(from: String?, to: String): List<String> {
     // `to` may be a tag that does not exist yet: a normal release bumps the
     // version but only tags at the very end. Fall back to HEAD then. When the
@@ -217,6 +221,7 @@ fun commitsSince(from: String?, to: String): List<String> {
     }
     return out.toString().trim().lineSequence()
         .filter { it.isNotBlank() }
+        .filterNot { releaseCommitPattern.matcher(it).find() }
         .toList()
 }
 
