@@ -158,6 +158,69 @@ fun writeVersion(next: String) {
     gradlePropsFile.writeText(updated)
 }
 
+// --- Release notes helpers -------------------------------------------------
+
+val skriptVersion: String =
+    run {
+        val m = Pattern.compile("""Skript:([\d.]+)""").matcher(file("build.gradle.kts").readText())
+        if (m.find()) m.group(1) else "unknown"
+    }
+
+val minecraftVersion: String =
+    run {
+        val yml = file("src/main/resources/paper-plugin.yml").readText()
+        val m = Pattern.compile("""api-version:\s*['"]?([\d.]+)['"]?""").matcher(yml)
+        if (m.find()) m.group(1) else "unknown"
+    }
+
+fun lastReleaseTag(): String? {
+    val out = ByteArrayOutputStream()
+    execOps.exec {
+        commandLine("git", "tag", "--list", "v*.*.*", "--sort=-v:refname")
+        standardOutput = out
+    }
+    return out.toString().trim().lineSequence().firstOrNull()
+}
+
+fun commitsSince(tag: String?): List<Pair<String, String>> {
+    val range = if (tag != null) "$tag..HEAD" else "HEAD"
+    val out = ByteArrayOutputStream()
+    execOps.exec {
+        commandLine("git", "log", "--pretty=format:%H %s", range)
+        standardOutput = out
+    }
+    return out.toString().trim().lineSequence()
+        .filter { it.isNotBlank() }
+        .map { line ->
+            val space = line.indexOf(' ')
+            val hash = line.substring(0, space)
+            val subject = line.substring(space + 1)
+            hash to subject
+        }
+        .toList()
+}
+
+fun buildReleaseNotes(tag: String): String {
+    val prev = lastReleaseTag()?.takeIf { it != tag }
+    val commits = commitsSince(prev)
+    val repoUrl = "https://github.com/RohanDaCoder/LspSkript"
+    val sb = StringBuilder()
+    sb.appendLine("## LspSkript $tag")
+    sb.appendLine()
+    sb.appendLine("**Targets:** Skript $skriptVersion · Minecraft $minecraftVersion")
+    sb.appendLine()
+    sb.appendLine("### Changes since ${prev ?: "the beginning"}")
+    sb.appendLine()
+    if (commits.isEmpty()) {
+        sb.appendLine("_No commits since the last release._")
+    } else {
+        for ((hash, subject) in commits) {
+            sb.appendLine("- [$hash]($repoUrl/commit/$hash) $subject")
+        }
+    }
+    return sb.toString().trimEnd()
+}
+
 tasks.register("release") {
     group = "release"
     description = "Bump version, build the shadowJar, tag, and create a GitHub release via gh."
@@ -174,6 +237,9 @@ tasks.register("release") {
 
         if (dryRun) {
             println("[dryRun] Would release $tag and build LspSkript-$tag.jar, then tag + gh release.")
+            println("---- release notes preview ----")
+            println(buildReleaseNotes(tag))
+            println("-------------------------------")
             return@doLast
         }
 
@@ -198,11 +264,12 @@ tasks.register("release") {
         execOps.exec { commandLine("git", "push", "origin", "HEAD", "--tags") }
 
         // Create the GitHub release and upload the jar.
+        val notes = buildReleaseNotes(tag)
         execOps.exec {
             commandLine(
                 "gh", "release", "create", tag,
                 "--title", tag,
-                "--generate-notes",
+                "--notes", notes,
                 jar.path
             )
         }
