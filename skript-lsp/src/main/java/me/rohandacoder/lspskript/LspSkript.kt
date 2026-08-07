@@ -28,6 +28,10 @@ class LspSkript : JavaPlugin() {
         } catch (e: Exception) {
             logger.log(Level.SEVERE, "Failed to start LspSkript", e)
         }
+
+        if (config.getBoolean("check-updates", true)) {
+            UpdateNotifier(logger, pluginMeta.version).checkAsync()
+        }
     }
 
     override fun onDisable() {

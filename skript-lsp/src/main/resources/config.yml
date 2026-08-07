@@ -3,3 +3,6 @@
 port: 30505
 # LSP message tracing: off | messages | verbose
 trace: false
+# Check the latest GitHub release on load and notify in console when a newer
+# version is available.
+check-updates: true
