@@ -179,13 +179,6 @@ val pluginName: String =
         if (m.find()) m.group(1).trim() else "unknown"
     }
 
-val pluginMainClass: String =
-    run {
-        val yml = file("src/main/resources/paper-plugin.yml").readText()
-        val m = Pattern.compile("""(?m)^main:\s*(.+)$""").matcher(yml)
-        if (m.find()) m.group(1).trim() else "unknown"
-    }
-
 fun lastReleaseTag(): String? {
     val out = ByteArrayOutputStream()
     execOps.exec {
@@ -195,8 +188,21 @@ fun lastReleaseTag(): String? {
     return out.toString().trim().lineSequence().firstOrNull()
 }
 
-fun commitsSince(tag: String?): List<String> {
-    val range = if (tag != null) "$tag..HEAD" else "HEAD"
+fun commitsSince(from: String?, to: String): List<String> {
+    // `to` may be a tag that does not exist yet: a normal release bumps the
+    // version but only tags at the very end. Fall back to HEAD then. When the
+    // tag exists (e.g. re-releasing an existing tag) the range is capped at it,
+    // so later commits never leak into the notes.
+    val end = run {
+        val out = ByteArrayOutputStream()
+        execOps.exec {
+            commandLine("git", "rev-parse", "--verify", "--quiet", "$to^{commit}")
+            standardOutput = out
+            isIgnoreExitValue = true
+        }
+        if (out.toString().isNotBlank()) to else "HEAD"
+    }
+    val range = if (from != null) "$from..$end" else end
     val out = ByteArrayOutputStream()
     execOps.exec {
         commandLine("git", "log", "--pretty=format:%s", range)
@@ -207,17 +213,16 @@ fun commitsSince(tag: String?): List<String> {
         .toList()
 }
 
-fun buildReleaseNotes(tag: String): String {
-    val prev = lastReleaseTag()?.takeIf { it != tag }
-    val commits = commitsSince(prev)
+fun buildReleaseNotes(tag: String, prevOverride: String? = null): String {
+    val prev = prevOverride ?: lastReleaseTag()?.takeIf { it != tag }
+    val commits = commitsSince(prev, tag)
     val repoUrl = "https://github.com/RohanDaCoder/LspSkript"
     val sb = StringBuilder()
     sb.appendLine("## LspSkript $tag")
     sb.appendLine()
     sb.appendLine("**Plugin:** $pluginName ${tag.removePrefix("v")}")
-    sb.appendLine("**Main class:** $pluginMainClass")
     sb.appendLine("**Paper API:** $minecraftVersion")
-    sb.appendLine("**Skript:** $skriptVersion (required, loaded before the plugin)")
+    sb.appendLine("**Skript:** $skriptVersion")
     sb.appendLine()
     sb.appendLine("### Changes since ${prev ?: "the beginning"}")
     sb.appendLine()
@@ -233,6 +238,16 @@ fun buildReleaseNotes(tag: String): String {
         sb.appendLine("[Compare $prev...$tag]($repoUrl/compare/$prev...$tag)")
     }
     return sb.toString().trimEnd()
+}
+
+tasks.register("printReleaseNotes") {
+    group = "release"
+    description = "Print release notes for a tag. Pass -Ptag=vX.Y.Z and -PprevTag=vA.B.C to override the defaults (defaults: next version, latest tag)."
+    doLast {
+        val tag = project.findProperty("tag") as? String ?: "v${nextVersionFromProps()}"
+        val prev = project.findProperty("prevTag") as? String
+        println(buildReleaseNotes(tag, prev))
+    }
 }
 
 tasks.register("release") {
