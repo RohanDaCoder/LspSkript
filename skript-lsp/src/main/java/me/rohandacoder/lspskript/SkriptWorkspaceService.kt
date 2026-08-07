@@ -19,12 +19,6 @@ import java.util.concurrent.CompletableFuture
  */
 class SkriptWorkspaceService(private val textService: SkriptTextDocumentService) : WorkspaceService {
 
-    private var client: org.eclipse.lsp4j.services.LanguageClient? = null
-
-    fun connect(client: org.eclipse.lsp4j.services.LanguageClient) {
-        this.client = client
-    }
-
     @JsonRequest("workspace/symbol")
     @Suppress("DEPRECATION")
     override fun symbol(params: WorkspaceSymbolParams): CompletableFuture<Either<List<SymbolInformation>, List<WorkspaceSymbol>>> {

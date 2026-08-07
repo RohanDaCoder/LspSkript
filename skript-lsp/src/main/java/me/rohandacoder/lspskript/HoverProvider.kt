@@ -40,7 +40,11 @@ class HoverProvider {
         }
         val hover = Hover()
         hover.setContents(MarkupContent(MarkupKind.MARKDOWN, md))
-        hover.range = CompletionProvider.wordRange(CompletionProvider.lineAt(text, position.line), position.character)
+        hover.range = CompletionProvider.wordRange(
+            CompletionProvider.lineAt(text, position.line),
+            position.character,
+            position.line
+        )
         return hover
     }
 

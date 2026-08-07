@@ -2,13 +2,12 @@ package me.rohandacoder.lspskript
 
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
+import org.eclipse.lsp4j.jsonrpc.messages.Either3
 import org.eclipse.lsp4j.jsonrpc.services.JsonNotification
 import org.eclipse.lsp4j.jsonrpc.services.JsonRequest
 import org.eclipse.lsp4j.jsonrpc.CompletableFutures
 import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.TextDocumentService
-import java.net.URI
-import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
@@ -30,7 +29,6 @@ class SkriptTextDocumentService : TextDocumentService {
     private val documentSymbolProvider: DocumentSymbolProvider by lazy { DocumentSymbolProvider() }
     private val definitionReferenceProvider: DefinitionReferenceProvider by lazy { DefinitionReferenceProvider() }
     private val formattingProvider: FormattingProvider by lazy { FormattingProvider() }
-    private val renameProvider: RenameProvider by lazy { RenameProvider() }
     private val codeActionProvider: CodeActionProvider by lazy { CodeActionProvider() }
 
     fun connect(client: LanguageClient) {
@@ -97,7 +95,7 @@ class SkriptTextDocumentService : TextDocumentService {
         definitionReferenceProvider.index(uri, text)
     }
 
-    private fun applyRangeEdit(text: String, range: Range, replacement: String): String {
+    internal fun applyRangeEdit(text: String, range: Range, replacement: String): String {
         val lines = text.split("\n".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
         val startLine = range.start.line
         val startChar = range.start.character
@@ -129,7 +127,7 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync Either.forLeft(emptyList<CompletionItem>())
-            val items = completionProvider.complete(uri, text, params.position)
+            val items = completionProvider.complete(uri, text, params.position, definitionReferenceProvider.variableNames())
             Either.forLeft(items)
         }
     }
@@ -219,7 +217,19 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync WorkspaceEdit()
-            renameProvider.rename(uri, text, params.position, params.newName)
+            definitionReferenceProvider.rename(uri, text, params.position, params.newName)
+        }
+    }
+
+    @JsonRequest("textDocument/prepareRename")
+    override fun prepareRename(
+        params: PrepareRenameParams
+    ): CompletableFuture<Either3<Range, PrepareRenameResult, PrepareRenameDefaultBehavior>> {
+        return CompletableFutures.computeAsync { cancelToken ->
+            cancelToken.checkCanceled()
+            val uri = params.textDocument.uri
+            val text = documents[uri] ?: return@computeAsync null
+            definitionReferenceProvider.prepareRename(uri, text, params.position)
         }
     }
 
@@ -237,6 +247,4 @@ class SkriptTextDocumentService : TextDocumentService {
     fun workspaceSymbols(query: String?): List<SymbolInformation> {
         return definitionReferenceProvider.workspaceSymbols(query)
     }
-
-    fun getDocument(uri: String): String? = documents[uri]
 }

@@ -19,7 +19,7 @@ import java.util.regex.Pattern
  */
 class CompletionProvider {
 
-    fun complete(uri: String, text: String, position: Position): List<CompletionItem> {
+    fun complete(uri: String, text: String, position: Position, knownVariables: Collection<String> = emptyList()): List<CompletionItem> {
         val line = lineAt(text, position.line)
         val prefix = currentWord(line, position.character)
 
@@ -34,15 +34,17 @@ class CompletionProvider {
             }
             Context.IN_EXPRESSION -> {
                 addExpressions(items, prefix)
-                addVariables(items, prefix)
+                if (hasBraceBefore(line, position.character)) {
+                    addVariables(items, prefix, knownVariables)
+                }
             }
         }
         return items
     }
 
-    private enum class Context { TOP_LEVEL, IN_SECTION, IN_EXPRESSION }
+    internal enum class Context { TOP_LEVEL, IN_SECTION, IN_EXPRESSION }
 
-    private fun detectContext(text: String, position: Position): Context {
+    internal fun detectContext(text: String, position: Position): Context {
         // Inspect indentation/structure of preceding lines.
         val lineIdx = position.line
         val lines = text.split("\n".toRegex()).toTypedArray()
@@ -52,8 +54,13 @@ class CompletionProvider {
         val currentLine = lineAt(text, lineIdx)
         val cursor = position.character
         val before = currentLine.substring(0, Math.min(cursor, currentLine.length))
-        if (before.contains("%") && before.indexOf('%', before.indexOf('%') + 1) == -1) {
-            // unbalanced '%' -> inside an expression slot
+        if (before.count { it == '%' } % 2 == 1) {
+            // odd number of '%' on the line before the cursor -> inside a
+            // %...% expression slot
+            return Context.IN_EXPRESSION
+        }
+        if (before.contains("{")) {
+            // typing inside (or after) a `{...}` variable brace
             return Context.IN_EXPRESSION
         }
 
@@ -67,23 +74,14 @@ class CompletionProvider {
             }
             val ind = indentOf(l)
             if (ind < indent) {
-                insideSection = !isTopLevelStructure(l.trim())
+                // Found the enclosing block header: the cursor is inside a
+                // section (event, command, function, if, loop, ...).
+                insideSection = true
                 break
             }
             i--
         }
         return if (insideSection) Context.IN_SECTION else Context.TOP_LEVEL
-    }
-
-    private fun isTopLevelStructure(trimmed: String): Boolean {
-        // Heuristics: events, commands, functions, options, variables, using, aliases.
-        return trimmed.startsWith("on ")
-            || trimmed.startsWith("command ")
-            || trimmed.startsWith("function ")
-            || trimmed.startsWith("options")
-            || trimmed.startsWith("variables")
-            || trimmed.startsWith("using ")
-            || trimmed.startsWith("aliases")
     }
 
     private fun addStructures(items: MutableList<CompletionItem>, prefix: String) {
@@ -136,7 +134,10 @@ class CompletionProvider {
     }
 
     companion object {
-        val trailingWord: Pattern = Pattern.compile("([A-Za-z][A-Za-z0-9 _%-]*)\\z")
+        // The trailing identifier-like chunk before the cursor: letters, digits,
+        // `_`, `{`, `}`, `%`, `.` and `-`. Deliberately excludes whitespace so
+        // completing after a space yields the word being typed, not the phrase.
+        val trailingWord: Pattern = Pattern.compile("([A-Za-z0-9_{}%.-]*)\\z")
 
         @JvmStatic
         fun cleanPattern(pattern: String): String {
@@ -148,18 +149,31 @@ class CompletionProvider {
     @JvmStatic
     fun toSnippet(pattern: String): String {
         val m: Matcher = Pattern.compile("%([^%]+)%").matcher(pattern)
-        val sb = StringBuffer()
+        val sb = StringBuilder()
         var i = 1
+        var last = 0
         while (m.find()) {
             val type = m.group(1).replace("[-@0-9]".toRegex(), "").trim()
-            m.appendReplacement(sb, "\${" + (i++) + ":" + Matcher.quoteReplacement(type) + "}")
+            sb.append(pattern, last, m.start())
+            sb.append("\${").append(i++).append(':').append(type).append('}')
+            last = m.end()
         }
-        m.appendTail(sb)
+        sb.append(pattern, last, pattern.length)
         return sb.toString()
     }
 
-    private fun addVariables(items: MutableList<CompletionItem>, prefix: String) {
-        if (prefix.startsWith("{")) {
+    private fun addVariables(items: MutableList<CompletionItem>, prefix: String, knownVariables: Collection<String>) {
+        val filter = prefix.removePrefix("{").lowercase(Locale.ENGLISH)
+        for (name in knownVariables) {
+            if (name.lowercase(Locale.ENGLISH).startsWith(filter)) {
+                val item = CompletionItem()
+                item.label = "{$name}"
+                item.kind = CompletionItemKind.Variable
+                item.insertText = "{$name}"
+                items.add(item)
+            }
+        }
+        if (knownVariables.none { it.lowercase(Locale.ENGLISH).startsWith(filter) }) {
             val item = CompletionItem()
             item.label = "{variable}"
             item.kind = CompletionItemKind.Variable
@@ -168,6 +182,9 @@ class CompletionProvider {
             items.add(item)
         }
     }
+
+    private fun hasBraceBefore(line: String, character: Int): Boolean =
+        line.substring(0, Math.min(character, line.length)).contains("{")
 
     // ------------------------------------------------------------------
     // Text helpers
@@ -194,12 +211,12 @@ class CompletionProvider {
     }
 
     @JvmStatic
-    fun wordRange(line: String, character: Int): Range {
+    fun wordRange(line: String, character: Int, lineIndex: Int = 0): Range {
         var start = character
         while (start > 0 && Character.isLetterOrDigit(line[start - 1])) start--
         var end = character
         while (end < line.length && Character.isLetterOrDigit(line[end])) end++
-        return Range(Position(0, start), Position(0, end))
+        return Range(Position(lineIndex, start), Position(lineIndex, end))
     }
     }
 }

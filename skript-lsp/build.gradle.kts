@@ -6,7 +6,6 @@ import java.util.regex.Pattern
 
 plugins {
     kotlin("jvm") version "2.3.0"
-    `maven-publish`
     id("com.gradleup.shadow") version "8.3.5"
 }
 

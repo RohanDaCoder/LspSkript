@@ -26,16 +26,11 @@ import java.util.concurrent.CompletableFuture
  * Server-level LSP service: initialize/shutdown/exit and capability advertising.
  */
 class SkriptLanguageServerService(
-    private val textService: SkriptTextDocumentService,
-    private val workspaceService: SkriptWorkspaceService
+    private val textService: SkriptTextDocumentService
 ) : LanguageServer, LanguageClientAware {
 
-    private var client: LanguageClient? = null
-
     override fun connect(client: LanguageClient) {
-        this.client = client
         textService.connect(client)
-        workspaceService.connect(client)
     }
 
     override fun getTextDocumentService(): TextDocumentService = textService
@@ -53,7 +48,7 @@ class SkriptLanguageServerService(
         caps.setReferencesProvider(true)
         caps.setDocumentSymbolProvider(true)
         caps.setCodeActionProvider(CodeActionOptions())
-        caps.setRenameProvider(RenameOptions(false))
+        caps.setRenameProvider(RenameOptions(true))
         caps.setDocumentFormattingProvider(true)
         caps.setDocumentRangeFormattingProvider(true)
         caps.setWorkspaceSymbolProvider(true)
@@ -74,6 +69,4 @@ class SkriptLanguageServerService(
     override fun initialized(params: InitializedParams) {
         // Nothing required; diagnostics are pushed on document open/change.
     }
-
-    fun getClient(): LanguageClient? = client
 }
