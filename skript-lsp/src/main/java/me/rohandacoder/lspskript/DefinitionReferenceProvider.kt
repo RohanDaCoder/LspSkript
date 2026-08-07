@@ -72,7 +72,7 @@ class DefinitionReferenceProvider {
         val functions: MutableSet<String> = mutableSetOf()
         val commands: MutableSet<String> = mutableSetOf()
         for ((uri, text) in documents) {
-            val lines = text.split("\n".toRegex())
+            val lines = text.split('\n')
             for (i in lines.indices) {
                 val line = lines[i]
                 val fm: Matcher = functionDef.matcher(line)
@@ -205,7 +205,7 @@ class DefinitionReferenceProvider {
         val lower = word.lowercase(Locale.ENGLISH)
         val result: MutableList<Location> = mutableListOf()
         for ((uri, text) in documents) {
-            val lines = text.split("\n".toRegex())
+            val lines = text.split('\n')
             for (i in lines.indices) {
                 val m: Matcher = wordPattern.matcher(lines[i])
                 while (m.find()) {
@@ -263,7 +263,7 @@ class DefinitionReferenceProvider {
 
     private fun textAt(text: String, range: Range): String? {
         if (range.start.line != range.end.line) return null
-        val line = text.split("\n".toRegex()).getOrNull(range.start.line) ?: return null
+        val line = text.split('\n').getOrNull(range.start.line) ?: return null
         val start = range.start.character.coerceIn(0, line.length)
         val end = range.end.character.coerceIn(start, line.length)
         return line.substring(start, end)

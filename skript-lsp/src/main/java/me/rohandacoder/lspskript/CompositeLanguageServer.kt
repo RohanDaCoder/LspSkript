@@ -36,8 +36,6 @@ class CompositeLanguageServer(
     override fun getWorkspaceService(): WorkspaceService = workspaceService
 
     override fun connect(client: LanguageClient) {
-        if (serverService is LanguageClientAware) {
-            (serverService as LanguageClientAware).connect(client)
-        }
+        (serverService as? LanguageClientAware)?.connect(client)
     }
 }

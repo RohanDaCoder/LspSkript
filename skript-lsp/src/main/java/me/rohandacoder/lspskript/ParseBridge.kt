@@ -32,6 +32,7 @@ import java.util.logging.Level
 class ParseBridge {
 
     private val tempFiles: MutableMap<String, File> = WeakHashMap()
+    private val invalidFileNameChars: Regex = Regex("[^a-zA-Z0-9._-]")
     private val lspDir: File by lazy {
         try {
             Files.createTempDirectory("lspskript").toFile()
@@ -53,7 +54,7 @@ class ParseBridge {
         handler.start()
         val before: Set<Script> = ScriptLoader.getLoadedScripts().toSet()
         try {
-            val files: Set<File> = Collections.singleton(tempFile)
+            val files: Set<File> = setOf(tempFile)
             ScriptLoader.loadScripts(files, OpenCloseable.EMPTY).join()
         } catch (e: Exception) {
             // loadScripts may throw for fatal structural issues; the handler
@@ -133,7 +134,7 @@ class ParseBridge {
         if (slash >= 0) s = s.substring(slash + 1)
         val colon = s.lastIndexOf(':')
         if (colon >= 0) s = s.substring(colon + 1)
-        s = s.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+        s = s.replace(invalidFileNameChars, "_")
         return if (s.isEmpty()) "script" else s
     }
 }

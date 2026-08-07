@@ -96,7 +96,7 @@ class SkriptTextDocumentService : TextDocumentService {
     }
 
     internal fun applyRangeEdit(text: String, range: Range, replacement: String): String {
-        val lines = text.split("\n".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+        val lines = text.split('\n').dropLastWhile { it.isEmpty() }
         val startLine = range.start.line
         val startChar = range.start.character
         val endLine = range.end.line

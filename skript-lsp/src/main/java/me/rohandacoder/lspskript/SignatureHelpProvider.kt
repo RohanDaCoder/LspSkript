@@ -17,6 +17,8 @@ import java.util.regex.Pattern
 class SignatureHelpProvider {
 
     private val typePattern: Pattern = Pattern.compile("%([^%]+)%")
+    private val typeStripPattern: Regex = Regex("[-@0-9]")
+    private val whitespacePattern: Regex = Regex("\\s+")
 
     fun signatureHelp(uri: String, text: String, position: Position): SignatureHelp? {
         val line = CompletionProvider.lineAt(text, position.line)
@@ -31,17 +33,19 @@ class SignatureHelpProvider {
         addAll(reg.syntaxes(SyntaxRegistry.EXPRESSION), before, candidates)
 
         if (candidates.isEmpty()) return null
+        val first = candidates.first()
+        val firstPattern = first.patterns().firstOrNull() ?: return null
 
         val info = SignatureInformation()
         // Use the first candidate's first pattern.
-        val pattern = CompletionProvider.cleanPattern(candidates[0].patterns().iterator().next())
+        val pattern = CompletionProvider.cleanPattern(firstPattern)
         info.setLabel(pattern)
 
         val params: MutableList<ParameterInformation> = mutableListOf()
         val m: Matcher = typePattern.matcher(pattern)
         var cursorTypesSeen = 0
         while (m.find()) {
-            val type = m.group(1).replace("[-@0-9]".toRegex(), "").trim()
+            val type = m.group(1).replace(typeStripPattern, "").trim()
             val pi = ParameterInformation()
             pi.setLabel(type)
             params.add(pi)
@@ -73,7 +77,7 @@ class SignatureHelpProvider {
 
     private fun overlaps(before: String, pattern: String): Boolean {
         // Check that the last few words of `before` appear within the pattern.
-        val words = before.trim().split("\\s+".toRegex()).toTypedArray()
+        val words = before.trim().split(whitespacePattern)
         if (words.isEmpty()) return false
         val take = Math.min(3, words.size)
         val tail = words.takeLast(take).joinToString(" ")

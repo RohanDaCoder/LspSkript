@@ -57,7 +57,7 @@ class CodeActionProvider {
     }
 
     private fun insertAtLineStart(text: String, line: Int, insertion: String): TextEdit {
-        val lines = text.split("\n".toRegex()).toTypedArray()
+        val lines = text.split('\n')
         val existing = if (line >= 0 && line < lines.size) lines[line] else ""
         // Preserve indentation.
         val indent = CompletionProvider.indentOf(existing)

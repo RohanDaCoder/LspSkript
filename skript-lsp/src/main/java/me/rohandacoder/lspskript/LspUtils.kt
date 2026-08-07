@@ -40,8 +40,4 @@ object LspUtils {
             throw RuntimeException("Failed to run Skript parse on main thread", e)
         }
     }
-
-    fun <T> call(callable: Callable<T>): T {
-        return onMainThread(Supplier { callable.call() })
-    }
 }

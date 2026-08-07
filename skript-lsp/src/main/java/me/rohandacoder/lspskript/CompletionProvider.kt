@@ -63,7 +63,7 @@ class CompletionProvider {
     internal fun detectContext(text: String, position: Position): Context {
         // Inspect indentation/structure of preceding lines.
         val lineIdx = position.line
-        val lines = text.split("\n".toRegex()).toTypedArray()
+        val lines = text.split('\n')
         val indent = indentOf(lineAt(text, lineIdx))
 
         // If the current line is inside a %...% expression, offer expressions.
@@ -199,28 +199,36 @@ class CompletionProvider {
         // completing after a space yields the word being typed, not the phrase.
         val trailingWord: Pattern = Pattern.compile("([A-Za-z0-9_{}%.-]*)\\z")
 
+        /** Parse-tag marker like `[a:` (the `[` is kept for display). */
+        private val tagPattern: Regex = Regex("\\[[a-zA-Z]:")
+
+        /** `%type%` slot markers, for building snippets and signatures. */
+        private val typeSlotPattern: Pattern = Pattern.compile("%([^%]+)%")
+
+        /** Type-shaping characters stripped when naming snippet tabstops. */
+        private val typeStripPattern: Regex = Regex("[-@0-9]")
+
         @JvmStatic
         fun cleanPattern(pattern: String): String {
-        // Remove parse tags like [a:], markers, and %types% are kept for display.
-        val s = pattern.replace("\\[[a-zA-Z]:".toRegex(), "[")
-        return s.trim()
-    }
-
-    @JvmStatic
-    fun toSnippet(pattern: String): String {
-        val m: Matcher = Pattern.compile("%([^%]+)%").matcher(pattern)
-        val sb = StringBuilder()
-        var i = 1
-        var last = 0
-        while (m.find()) {
-            val type = m.group(1).replace("[-@0-9]".toRegex(), "").trim()
-            sb.append(pattern, last, m.start())
-            sb.append("\${").append(i++).append(':').append(type).append('}')
-            last = m.end()
+            // Remove parse tags like [a:], markers, and %types% are kept for display.
+            return pattern.replace(tagPattern, "[").trim()
         }
-        sb.append(pattern, last, pattern.length)
-        return sb.toString()
-    }
+
+        @JvmStatic
+        fun toSnippet(pattern: String): String {
+            val m: Matcher = typeSlotPattern.matcher(pattern)
+            val sb = StringBuilder()
+            var i = 1
+            var last = 0
+            while (m.find()) {
+                val type = m.group(1).replace(typeStripPattern, "").trim()
+                sb.append(pattern, last, m.start())
+                sb.append("\${").append(i++).append(':').append(type).append('}')
+                last = m.end()
+            }
+            sb.append(pattern, last, pattern.length)
+            return sb.toString()
+        }
 
     private fun addVariables(items: MutableList<CompletionItem>, prefix: String, range: Range, knownVariables: Collection<String>) {
         val filter = prefix.removePrefix("{").lowercase(Locale.ENGLISH)
@@ -255,7 +263,7 @@ class CompletionProvider {
 
     @JvmStatic
     fun lineAt(text: String, line: Int): String {
-        val lines = text.split("\n".toRegex()).toTypedArray()
+        val lines = text.split('\n')
         return if (line >= 0 && line < lines.size) lines[line] else ""
     }
 

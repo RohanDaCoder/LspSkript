@@ -26,17 +26,17 @@ class FormattingProvider {
 
     private fun formatAll(text: String): List<TextEdit> {
         val config = DocumentSymbolProvider.parseConfig(text) ?: return emptyList()
+        val temp = File.createTempFile("skript-format", ".sk")
         return try {
-            val temp = File.createTempFile("skript-format", ".sk")
             config.save(temp)
             val formatted = String(Files.readAllBytes(temp.toPath()), StandardCharsets.UTF_8)
-            val lineCount = text.split("\n".toRegex()).toTypedArray().size
+            val lineCount = text.split('\n').size
             val full = Range(Position(0, 0), Position(lineCount, 0))
-            val edit = TextEdit(full, formatted)
-            temp.delete()
-            listOf(edit)
+            listOf(TextEdit(full, formatted))
         } catch (e: IOException) {
             emptyList()
+        } finally {
+            temp.delete()
         }
     }
 }
