@@ -127,7 +127,12 @@ class SkriptTextDocumentService : TextDocumentService {
             val uri = params.textDocument.uri
             val text = documents[uri]
             if (text == null) return@computeAsync Either.forLeft(emptyList<CompletionItem>())
-            val items = completionProvider.complete(uri, text, params.position, definitionReferenceProvider.variableNames())
+            val items = completionProvider.complete(
+                uri, text, params.position,
+                definitionReferenceProvider.variableNames(),
+                definitionReferenceProvider.functionNames(),
+                definitionReferenceProvider.commandNames(),
+            )
             Either.forLeft(items)
         }
     }

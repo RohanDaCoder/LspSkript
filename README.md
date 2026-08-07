@@ -111,8 +111,8 @@ authenticated (`gh auth login`).
    `plugins/` folder, then start the server.
 2. In VS Code, install the `lspskript` extension from `vscode-skript/`.
 3. Open a `.sk` file. The extension connects to `localhost:30505` automatically.
-   If your server runs elsewhere or uses a different port, set `skriptLsp.port`
-   in your VS Code settings.
+   If your server runs elsewhere or uses a different port, set `skriptLsp.host`
+   and `skriptLsp.port` in your VS Code settings.
 
 ## Configuration
 
@@ -129,6 +129,25 @@ The plugin reads `plugins/LspSkript/config.yml`:
 - [LSP4J](https://github.com/eclipse-lsp4j/lsp4j) 0.23.1
 - Paper API `1.21.11-R0.1-SNAPSHOT` (compile-only)
 - Skript `2.16.0` (compile-only, provided at runtime)
+
+## Known limitations
+
+- **Parse side effects** — each keystroke feeds the current buffer through
+  Skript's real `ScriptLoader`, which has no "don't execute" flag. A temporary
+  script that reaches the `on load` event will run its effects on the server.
+  Keep `on load` bodies side-effect free while editing, and rely on `/skript
+  reload` for anything destructive.
+- **Line-level diagnostics** — Skript reports errors per node, but its column
+  mapping does not line up with raw editor buffer columns (Skript normalizes
+  tabs/whitespace during parsing), so diagnostics span whole lines. This is
+  correct by construction, not a bug.
+- **Single parse per change** — one `didChange` triggers one parse; very large
+  scripts can take a moment before diagnostics refresh.
+- **Feature heuristics** — completion context, hover, and references are
+  registry/regex driven on top of Skript's parser output, not pure AST queries;
+  exotic syntax may be missed.
+- **Localhost TCP** — the plugin listens on `127.0.0.1` only; the server and
+  the editor must run on the same machine (or use a tunnel).
 
 ## License
 

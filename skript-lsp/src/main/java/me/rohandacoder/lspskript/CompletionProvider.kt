@@ -2,6 +2,7 @@ package me.rohandacoder.lspskript
 
 import org.eclipse.lsp4j.CompletionItem
 import org.eclipse.lsp4j.CompletionItemKind
+import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.InsertTextFormat
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
@@ -19,23 +20,38 @@ import java.util.regex.Pattern
  */
 class CompletionProvider {
 
-    fun complete(uri: String, text: String, position: Position, knownVariables: Collection<String> = emptyList()): List<CompletionItem> {
+    fun complete(
+        uri: String,
+        text: String,
+        position: Position,
+        knownVariables: Collection<String> = emptyList(),
+        functionNames: Collection<String> = emptyList(),
+        commandNames: Collection<String> = emptyList(),
+    ): List<CompletionItem> {
         val line = lineAt(text, position.line)
         val prefix = currentWord(line, position.character)
+        // Exact span the client should replace on accept. `prefix` is the
+        // trailing chunk before the cursor, so its start is simply here.
+        val editRange = Range(
+            Position(position.line, position.character - prefix.length),
+            Position(position.line, position.character)
+        )
 
         val context = detectContext(text, position)
 
         val items: MutableList<CompletionItem> = mutableListOf()
         when (context) {
-            Context.TOP_LEVEL -> addStructures(items, prefix)
+            Context.TOP_LEVEL -> addStructures(items, prefix, editRange)
             Context.IN_SECTION -> {
-                addEffectsConditions(items, prefix)
-                addStructures(items, prefix) // allow nested e.g. command/function
+                addEffectsConditions(items, prefix, editRange)
+                addStructures(items, prefix, editRange) // allow nested e.g. command/function
+                addUserFunctions(items, prefix, editRange, functionNames)
+                addCommands(items, prefix, editRange, commandNames)
             }
             Context.IN_EXPRESSION -> {
-                addExpressions(items, prefix)
+                addExpressions(items, prefix, editRange)
                 if (hasBraceBefore(line, position.character)) {
-                    addVariables(items, prefix, knownVariables)
+                    addVariables(items, prefix, editRange, knownVariables)
                 }
             }
         }
@@ -84,30 +100,72 @@ class CompletionProvider {
         return if (insideSection) Context.IN_SECTION else Context.TOP_LEVEL
     }
 
-    private fun addStructures(items: MutableList<CompletionItem>, prefix: String) {
+    private fun addStructures(items: MutableList<CompletionItem>, prefix: String, range: Range) {
         val reg: SyntaxRegistry = SyntaxRegistryAccess.registry()
-        addFrom(reg.syntaxes(SyntaxRegistry.STRUCTURE), items, prefix, CompletionItemKind.Class)
-        addFrom(reg.syntaxes(SyntaxRegistry.SECTION), items, prefix, CompletionItemKind.Class)
+        addFrom(reg.syntaxes(SyntaxRegistry.STRUCTURE), items, prefix, range, CompletionItemKind.Class)
+        addFrom(reg.syntaxes(SyntaxRegistry.SECTION), items, prefix, range, CompletionItemKind.Class)
     }
 
-    private fun addEffectsConditions(items: MutableList<CompletionItem>, prefix: String) {
+    private fun addEffectsConditions(items: MutableList<CompletionItem>, prefix: String, range: Range) {
         val reg: SyntaxRegistry = SyntaxRegistryAccess.registry()
-        addFrom(reg.syntaxes(SyntaxRegistry.EFFECT), items, prefix, CompletionItemKind.Function)
-        addFrom(reg.syntaxes(SyntaxRegistry.CONDITION), items, prefix, CompletionItemKind.Event)
+        addFrom(reg.syntaxes(SyntaxRegistry.EFFECT), items, prefix, range, CompletionItemKind.Function)
+        addFrom(reg.syntaxes(SyntaxRegistry.CONDITION), items, prefix, range, CompletionItemKind.Event)
     }
 
-    private fun addExpressions(items: MutableList<CompletionItem>, prefix: String) {
+    private fun addExpressions(items: MutableList<CompletionItem>, prefix: String, range: Range) {
         val reg: SyntaxRegistry = SyntaxRegistryAccess.registry()
-        addFrom(reg.syntaxes(SyntaxRegistry.EXPRESSION), items, prefix, CompletionItemKind.Field)
+        addFrom(reg.syntaxes(SyntaxRegistry.EXPRESSION), items, prefix, range, CompletionItemKind.Field)
     }
 
-    private fun addFrom(infos: Collection<SyntaxInfo<*>>, items: MutableList<CompletionItem>, prefix: String, kind: CompletionItemKind) {
+    private fun addUserFunctions(
+        items: MutableList<CompletionItem>,
+        prefix: String,
+        range: Range,
+        functionNames: Collection<String>,
+    ) {
+        // Only while actually typing the name; a bare insert after `(` would
+        // duplicate the already-typed call.
+        if (prefix.isEmpty()) return
+        for (name in functionNames) {
+            if (!name.startsWith(prefix.lowercase(Locale.ENGLISH))) continue
+            val item = CompletionItem()
+            item.label = "$name()"
+            item.kind = CompletionItemKind.Function
+            item.detail = "user function"
+            val snippet = "$name(\${1})"
+            item.insertText = snippet
+            item.insertTextFormat = InsertTextFormat.Snippet
+            item.textEdit = Either.forLeft(TextEdit(range, snippet))
+            items.add(item)
+        }
+    }
+
+    private fun addCommands(
+        items: MutableList<CompletionItem>,
+        prefix: String,
+        range: Range,
+        commandNames: Collection<String>,
+    ) {
+        if (prefix.isEmpty()) return
+        for (name in commandNames) {
+            if (!name.startsWith(prefix.lowercase(Locale.ENGLISH))) continue
+            val item = CompletionItem()
+            item.label = "/$name"
+            item.kind = CompletionItemKind.Function
+            item.detail = "user command"
+            item.insertText = "/$name"
+            item.textEdit = Either.forLeft(TextEdit(range, "/$name"))
+            items.add(item)
+        }
+    }
+
+    private fun addFrom(infos: Collection<SyntaxInfo<*>>, items: MutableList<CompletionItem>, prefix: String, range: Range, kind: CompletionItemKind) {
         for (info in infos) {
             for (pattern in info.patterns()) {
                 val cleaned = cleanPattern(pattern)
                 if (cleaned.isEmpty()) continue
                 if (prefix.isNotEmpty() && !cleaned.lowercase(Locale.ENGLISH).startsWith(prefix.lowercase(Locale.ENGLISH))) continue
-                items.add(buildItem(info, cleaned, kind))
+                items.add(buildItem(info, cleaned, kind, range))
             }
         }
         // De-duplicate by label.
@@ -115,7 +173,7 @@ class CompletionProvider {
         items.removeIf { !seen.add(it.label) }
     }
 
-    private fun buildItem(info: SyntaxInfo<*>, pattern: String, kind: CompletionItemKind): CompletionItem {
+    private fun buildItem(info: SyntaxInfo<*>, pattern: String, kind: CompletionItemKind, range: Range): CompletionItem {
         val item = CompletionItem()
         item.label = pattern
         item.kind = kind
@@ -126,8 +184,10 @@ class CompletionProvider {
         if (snippet.contains("\${")) {
             item.insertText = snippet
             item.insertTextFormat = InsertTextFormat.Snippet
+            item.textEdit = Either.forLeft(TextEdit(range, snippet))
         } else {
             item.insertText = pattern
+            item.textEdit = Either.forLeft(TextEdit(range, pattern))
         }
         item.setDocumentation(pattern)
         return item
@@ -162,7 +222,7 @@ class CompletionProvider {
         return sb.toString()
     }
 
-    private fun addVariables(items: MutableList<CompletionItem>, prefix: String, knownVariables: Collection<String>) {
+    private fun addVariables(items: MutableList<CompletionItem>, prefix: String, range: Range, knownVariables: Collection<String>) {
         val filter = prefix.removePrefix("{").lowercase(Locale.ENGLISH)
         for (name in knownVariables) {
             if (name.lowercase(Locale.ENGLISH).startsWith(filter)) {
@@ -170,6 +230,8 @@ class CompletionProvider {
                 item.label = "{$name}"
                 item.kind = CompletionItemKind.Variable
                 item.insertText = "{$name}"
+                // Replaces the `{..` typed so far, including the brace.
+                item.textEdit = Either.forLeft(TextEdit(range, "{$name}"))
                 items.add(item)
             }
         }
@@ -178,6 +240,7 @@ class CompletionProvider {
             item.label = "{variable}"
             item.kind = CompletionItemKind.Variable
             item.insertText = "{variable}"
+            item.textEdit = Either.forLeft(TextEdit(range, "{variable}"))
             item.setDocumentation("A Skript variable. Use {name::%expr%} for lists.")
             items.add(item)
         }

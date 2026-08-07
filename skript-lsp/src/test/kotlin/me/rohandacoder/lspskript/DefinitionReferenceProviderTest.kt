@@ -63,6 +63,23 @@ class DefinitionReferenceProviderTest {
     }
 
     @Test
+    fun functionNamesListsUserFunctions() {
+        val p = provider(
+            uri to "function greet(msg: text):\n\tsend msg to player",
+            "file:///b.sk" to "function tally():\n\tset {x} to 1",
+        )
+
+        assertEquals(setOf("greet", "tally"), p.functionNames())
+    }
+
+    @Test
+    fun commandNamesListCommandsWithoutSlash() {
+        val p = provider(uri to "command /hello <player>:\n\tmessage \"hi\"")
+
+        assertEquals(setOf("hello"), p.commandNames())
+    }
+
+    @Test
     fun unknownWordHasNoDefinition() {
         val doc = "function greet(msg: text):\n\tsend msg to player"
         val p = provider(uri to doc)
@@ -223,6 +240,7 @@ class DefinitionReferenceProviderTest {
     // ------------------------------------------------------------------
 
     @Test
+    @Suppress("DEPRECATION") // SymbolInformation is deprecated in favor of WorkspaceSymbol
     fun workspaceSymbolsFiltersByQuery() {
         val p = provider(
             uri to "function greet(msg: text):",

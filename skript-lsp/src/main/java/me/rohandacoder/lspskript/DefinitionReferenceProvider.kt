@@ -34,7 +34,7 @@ class DefinitionReferenceProvider {
 
     /** Immutable index snapshot; swapped atomically by [index]. */
     @Volatile
-    private var snapshot: Index = Index(emptyMap(), emptyMap())
+    private var snapshot: Index = Index(emptyMap(), emptyMap(), emptySet(), emptySet())
 
     private val functionDef: Pattern = Pattern.compile("^\\s*function\\s+([a-zA-Z0-9_]+)\\s*\\(")
     private val commandDef: Pattern = Pattern.compile("^\\s*command\\s+/([^\\s<]+)")
@@ -46,6 +46,10 @@ class DefinitionReferenceProvider {
         val definitions: Map<String, Location>,
         /** variable base name -> locations of every `{...}` occurrence. */
         val variables: Map<String, List<Location>>,
+        /** lowercase bare names of user-defined functions. */
+        val functions: Set<String>,
+        /** lowercase bare names of user-defined commands (no leading `/`). */
+        val commands: Set<String>,
     )
 
     fun index(uri: String, text: String) {
@@ -56,27 +60,33 @@ class DefinitionReferenceProvider {
     /** Names of all variables seen across open documents (for completion). */
     fun variableNames(): Set<String> = snapshot.variables.keys
 
+    /** Bare names of user-defined functions across open documents (for completion). */
+    fun functionNames(): Set<String> = snapshot.functions
+
+    /** Bare names of user-defined commands, without the leading `/` (for completion). */
+    fun commandNames(): Set<String> = snapshot.commands
+
     private fun rebuild() {
         val definitions: MutableMap<String, Location> = mutableMapOf()
         val variables: MutableMap<String, MutableList<Location>> = mutableMapOf()
+        val functions: MutableSet<String> = mutableSetOf()
+        val commands: MutableSet<String> = mutableSetOf()
         for ((uri, text) in documents) {
             val lines = text.split("\n".toRegex())
             for (i in lines.indices) {
                 val line = lines[i]
                 val fm: Matcher = functionDef.matcher(line)
                 if (fm.find()) {
-                    definitions.putIfAbsent(
-                        fm.group(1).lowercase(Locale.ENGLISH),
-                        Location(uri, matchRange(i, fm, 1))
-                    )
+                    val name = fm.group(1).lowercase(Locale.ENGLISH)
+                    definitions.putIfAbsent(name, Location(uri, matchRange(i, fm, 1)))
+                    functions.add(name)
                     continue
                 }
                 val cm: Matcher = commandDef.matcher(line)
                 if (cm.find()) {
-                    definitions.putIfAbsent(
-                        cm.group(1).lowercase(Locale.ENGLISH),
-                        Location(uri, commandNameRange(i, cm))
-                    )
+                    val name = cm.group(1).lowercase(Locale.ENGLISH)
+                    definitions.putIfAbsent(name, Location(uri, commandNameRange(i, cm)))
+                    commands.add(name)
                 }
                 val vm: Matcher = varUsage.matcher(line)
                 while (vm.find()) {
@@ -88,7 +98,7 @@ class DefinitionReferenceProvider {
                 }
             }
         }
-        snapshot = Index(definitions, variables)
+        snapshot = Index(definitions, variables, functions, commands)
     }
 
     fun definition(uri: String, text: String, position: Position): List<Location> {

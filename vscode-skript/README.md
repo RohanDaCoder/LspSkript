@@ -31,13 +31,16 @@ that are identical to what Skript prints in-game.
 1. Drop `LspSkript.jar` into your server's `plugins/` folder and start the server.
 2. In VS Code, install this extension.
 3. Open a `.sk` file. The extension connects to `localhost:30505` automatically.
-   If your server runs elsewhere or uses a different port, set `skriptLsp.port`
-   in your VS Code settings.
+   If your server runs elsewhere or uses a different port, set `skriptLsp.host`
+   and `skriptLsp.port` in your VS Code settings. The extension keeps retrying
+   the connection with backoff, so opening VS Code before the server is up
+   (or reloading the plugin) reconnects automatically.
 
 ## Settings
 
 | Setting | Default | Description |
 | ------- | ------- | ----------- |
+| `skriptLsp.host` | `localhost` | Host the LspSkript plugin listens on. |
 | `skriptLsp.port` | `30505` | TCP port the LspSkript plugin listens on. |
 | `skriptLsp.trace` | `off` | LSP message tracing: `off` \| `messages` \| `verbose`. |
 

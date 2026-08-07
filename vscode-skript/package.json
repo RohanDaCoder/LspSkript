@@ -45,6 +45,11 @@
         "configuration": {
             "title": "Skript LSP",
             "properties": {
+                "skriptLsp.host": {
+                    "type": "string",
+                    "default": "localhost",
+                    "description": "Host the LspSkript plugin is listening on."
+                },
                 "skriptLsp.port": {
                     "type": "number",
                     "default": 30505,
