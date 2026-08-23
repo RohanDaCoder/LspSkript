@@ -270,9 +270,12 @@ tasks.register("release") {
     group = "release"
     description = "Bump version, build the shadowJar, tag, and create a GitHub release via gh."
 
+    var propsBefore: String? = null
+
     doFirst {
         // Bump the version first so the subsequently-built jar carries it.
         if (!dryRun) {
+            propsBefore = gradlePropsFile.readText()
             writeVersion(nextVersionFromProps())
         }
     }
@@ -283,7 +286,7 @@ tasks.register("release") {
         val tag = if (dryRun) "v${nextVersionFromProps()}" else "v${readVersion()}"
 
         if (dryRun) {
-            println("[dryRun] Would release $tag and build LspSkript-$tag.jar, then tag + gh release.")
+            println("[dryRun] Would release $tag and build LspSkript-${tag.removePrefix("v")}.jar, then tag + gh release.")
             println("---- release notes preview ----")
             println(buildReleaseNotes(tag))
             println("-------------------------------")
@@ -304,9 +307,15 @@ tasks.register("release") {
         val jar = layout.buildDirectory.file("libs/LspSkript-${readVersion()}.jar").get().asFile
         require(jar.exists()) { "Shadow jar not found at $jar" }
 
-        // Commit + tag, then push so the tag is available for the GitHub release.
-        execOps.exec { commandLine("git", "add", gradlePropsFile.path) }
-        execOps.exec { commandLine("git", "commit", "-m", "chore: release $tag") }
+        // Commit the version bump only when it actually changed. An explicit
+        // -PreleaseVersion equal to the current version (e.g. a first release
+        // of the already-tagged state) leaves the file untouched, so there is
+        // nothing to commit - but the tag and release are still created.
+        val changed = propsBefore?.let { it != gradlePropsFile.readText() } ?: false
+        if (changed) {
+            execOps.exec { commandLine("git", "add", gradlePropsFile.path) }
+            execOps.exec { commandLine("git", "commit", "-m", "chore: release $tag") }
+        }
         execOps.exec { commandLine("git", "tag", "-a", tag, "-m", "Release $tag") }
         execOps.exec { commandLine("git", "push", "origin", "HEAD", "--tags") }
 
