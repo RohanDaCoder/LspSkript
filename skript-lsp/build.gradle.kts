@@ -199,7 +199,7 @@ fun lastReleaseTag(): String? {
 // are created by the release task itself, after the previous tag.
 val releaseCommitPattern: Pattern = Pattern.compile("""chore: release v\d+\.\d+\.\d+""")
 
-fun commitsSince(from: String?, to: String): List<String> {
+fun commitsSince(from: String?, to: String): List<Pair<String, String>> {
     // `to` may be a tag that does not exist yet: a normal release bumps the
     // version but only tags at the very end. Fall back to HEAD then. When the
     // tag exists (e.g. re-releasing an existing tag) the range is capped at it,
@@ -216,12 +216,16 @@ fun commitsSince(from: String?, to: String): List<String> {
     val range = if (from != null) "$from..$end" else end
     val out = ByteArrayOutputStream()
     execOps.exec {
-        commandLine("git", "log", "--pretty=format:%s", range)
+        commandLine("git", "log", "--pretty=format:%H %s", range)
         standardOutput = out
     }
     return out.toString().trim().lineSequence()
         .filter { it.isNotBlank() }
-        .filterNot { releaseCommitPattern.matcher(it).find() }
+        .filterNot { releaseCommitPattern.matcher(it.substringAfter(' ')).find() }
+        .map { line ->
+            val space = line.indexOf(' ')
+            line.substring(0, space) to line.substring(space + 1)
+        }
         .toList()
 }
 
@@ -241,8 +245,8 @@ fun buildReleaseNotes(tag: String, prevOverride: String? = null): String {
     if (commits.isEmpty()) {
         sb.appendLine("_No commits since the last release._")
     } else {
-        for (subject in commits) {
-            sb.appendLine("- $subject")
+        for ((hash, subject) in commits) {
+            sb.appendLine("- [$hash]($repoUrl/commit/$hash) $subject")
         }
     }
     if (prev != null) {
