@@ -1,79 +1,78 @@
 {
-    "name": "lspskript",
-    "displayName": "LspSkript",
-    "description": "Full Skript language support (diagnostics, completion, hover, definitions, rename) powered by Skript's real parser.",
-    "version": "0.1.0",
-    "publisher": "skriptlang",
-    "engines": {
-        "vscode": "^1.75.0"
-    },
-    "categories": [
-        "Programming Languages",
-        "Linters"
-    ],
-    "activationEvents": [
-        "onLanguage:skript"
-    ],
-    "main": "./dist/extension.js",
-    "scripts": {
-        "vscode:prepublish": "bun run grammar && bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
-        "build": "bun run grammar && bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
-        "grammar": "bun run scripts/copy-grammar.js",
-        "package": "vsce package --allow-missing-repository"
-    },
-    "contributes": {
-        "languages": [
-            {
-                "id": "skript",
-                "aliases": [
-                    "Skript",
-                    "skript"
-                ],
-                "extensions": [
-                    ".sk"
-                ],
-                "configuration": "./language-configuration.json"
-            }
+  "name": "lspskript",
+  "displayName": "LspSkript",
+  "description": "Full Skript language support (diagnostics, completion, hover, definitions, rename) powered by Skript's real parser.",
+  "version": "0.1.0",
+  "publisher": "RohanDaCoder",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "vscode:prepublish": "bun run grammar && bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
+    "build": "bun run grammar && bun build extension.js --bundle --outfile=dist/extension.js --platform=node --external vscode",
+    "grammar": "bun run scripts/copy-grammar.js",
+    "package": "vsce package --allow-missing-repository",
+    "package:vsix": "bun run build && bunx @vscode/vsce package --allow-missing-repository -o lspskript.vsix",
+    "install:vsix": "bun run package:vsix && code --install-extension lspskript.vsix --force"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "skript",
+        "aliases": [
+          "Skript",
+          "skript"
         ],
-        "grammars": [
-            {
-                "language": "skript",
-                "scopeName": "source.skript",
-                "path": "./syntaxes/skript.tmLanguage.json"
-            }
+        "extensions": [
+          ".sk"
         ],
-        "configuration": {
-            "title": "Skript LSP",
-            "properties": {
-                "skriptLsp.host": {
-                    "type": "string",
-                    "default": "localhost",
-                    "description": "Host the LspSkript plugin is listening on."
-                },
-                "skriptLsp.port": {
-                    "type": "number",
-                    "default": 30505,
-                    "description": "TCP port the LspSkript plugin is listening on."
-                },
-                "skriptLsp.trace": {
-                    "type": "string",
-                    "enum": [
-                        "off",
-                        "messages",
-                        "verbose"
-                    ],
-                    "default": "off",
-                    "description": "LSP message tracing level."
-                }
-            }
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "skript",
+        "scopeName": "source.skript",
+        "path": "./syntaxes/skript.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Skript LSP",
+      "properties": {
+        "skriptLsp.host": {
+          "type": "string",
+          "default": "localhost",
+          "description": "Host the LspSkript plugin is listening on."
+        },
+        "skriptLsp.port": {
+          "type": "number",
+          "default": 30505,
+          "description": "TCP port the LspSkript plugin is listening on."
+        },
+        "skriptLsp.trace": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "LSP message tracing level."
         }
-    },
-    "dependencies": {
-        "vscode-languageclient": "^9.0.1"
-    },
-    "devDependencies": {
-        "@vscode/vsce": "^3.9.2",
-        "bun": "^1.3.0",
-        "cson-parser": "^4.0.9"
+      }
     }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2",
+    "bun": "^1.3.0",
+    "cson-parser": "^4.0.9"
+  }
 }
