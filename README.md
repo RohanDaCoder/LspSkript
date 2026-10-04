@@ -74,11 +74,19 @@ produced at `skript-lsp/build/libs/`.
 
 ## Releasing
 
-Releases are cut from your own machine using the `release` task in the
-`skript-lsp` module. It bumps the version in `gradle.properties`, builds the
-shadow jar, commits + tags, and creates a GitHub release (with the jar attached)
-via the `gh` CLI. Make sure you are authenticated (`gh auth login`) and on a
-clean `main`.
+Releases are driven by the [`io.github.rohandacoder.gradle-release`](https://github.com/RohanDaCoder/gradle-release-plugin)
+Gradle plugin, configured in the `release { }` block of `skript-lsp/build.gradle.kts`.
+It bumps the version in `gradle.properties`, builds the shadow jar, commits +
+tags + pushes, and creates a GitHub release with the jar attached via the `gh` CLI.
+
+The plugin resolves from `mavenLocal()` first (see `settings.gradle`), then from
+GitHub Packages. To use a locally built copy:
+
+```sh
+cd ../gradle-release-plugin && ./gradlew publishToMavenLocal
+```
+
+Make sure you are authenticated (`gh auth login`) and on a clean `main`.
 
 ```sh
 # Patch bump (default) + build + commit + tag + push + GitHub release
@@ -91,7 +99,7 @@ clean `main`.
 # Explicit version
 ./gradlew :skript-lsp:release "-PreleaseVersion=1.2.3"
 
-# Preview only — no commit, tag, push, or gh call
+# Preview only — computes the version and prints the notes, no commit/tag/push/gh
 ./gradlew :skript-lsp:release -PdryRun
 
 # Just write the next version into gradle.properties (no build/tag/gh)
@@ -99,7 +107,13 @@ clean `main`.
 
 # Just see what the next version would be
 ./gradlew :skript-lsp:printNextVersion -Ppart=minor
+
+# Preview the notes for a specific tag (defaults: next version, latest tag)
+./gradlew :skript-lsp:printReleaseNotes "-Ptag=v0.1.5" "-PprevTag=v0.1.4"
 ```
+
+> **PowerShell:** quote `-P` arguments (`"-PreleaseVersion=1.2.3"`), otherwise
+> PowerShell splits on `=` and Gradle receives a bogus task name.
 
 The version lives in `skriptLspVersion` in the root `gradle.properties`; tags
 and GitHub releases are published as `v<version>`. Requires the `gh` CLI to be

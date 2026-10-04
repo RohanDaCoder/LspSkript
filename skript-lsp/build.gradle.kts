@@ -1,12 +1,11 @@
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
-import org.gradle.process.ExecOperations
-import java.io.ByteArrayOutputStream
 import java.util.regex.Pattern
 
 plugins {
     kotlin("jvm") version "2.3.0"
     id("com.gradleup.shadow") version "8.3.5"
+    id("io.github.rohandacoder.gradle-release") version "0.1.0"
 }
 
 group = "me.rohandacoder"
@@ -81,255 +80,65 @@ tasks.named<ProcessResources>("processResources") {
 }
 
 // ---------------------------------------------------------------------------
-// release task — a bumpp-style flow for the skript-lsp module.
+// Release configuration — uses the io.github.rohandacoder.gradle-release plugin.
 //
 //   ./gradlew :skript-lsp:release                 # patch bump
 //   ./gradlew :skript-lsp:release -Ppart=minor
 //   ./gradlew :skript-lsp:release -Ppart=major
-//   ./gradlew :skript-lsp:release -PreleaseVersion=1.2.3  # explicit version
-//   ./gradlew :skript-lsp:release -PdryRun        # compute + build, no commit/tag/gh
+//   ./gradlew :skript-lsp:release "-PreleaseVersion=1.2.3"   # explicit version
+//   ./gradlew :skript-lsp:release -PdryRun       # compute + build, no commit/tag/gh
+//   ./gradlew :skript-lsp:printNextVersion -Ppart=minor
+//   ./gradlew :skript-lsp:printReleaseNotes "-Ptag=v0.1.5" ["-PprevTag=v0.1.4"]
+//
+// NOTE: quote -P arguments in PowerShell so `=` is passed through verbatim.
+//
+// `buildTask` is auto-detected as `shadowJar` because this module applies the
+// Shadow plugin; `repoUrl` is read from the `origin` git remote.
 // ---------------------------------------------------------------------------
 
-interface InjectedExecOps {
-    @get:javax.inject.Inject
-    val execOps: ExecOperations
-}
+/** `Skript:<version>` from the compileOnly dependency below. */
+val skriptDependencyVersion: Pattern = Pattern.compile("""SkriptLang:Skript:([\d.]+)""")
 
-val execOps = objects.newInstance<InjectedExecOps>().execOps
+/** `api-version:` from paper-plugin.yml, i.e. the MC version the plugin targets. */
+val paperApiVersion: Pattern = Pattern.compile("""api-version:\s*['"]?([\d.]+)['"]?""")
 
-val versionKey = "skriptLspVersion"
-val gradlePropsFile = rootProject.file("gradle.properties")
+fun patternGroup(rx: Pattern, text: String): String =
+    rx.matcher(text).let { if (it.find()) it.group(1) else "unknown" }
 
-fun readVersion(): String {
-    val m = Pattern.compile("""(?m)^$versionKey=(.+)""").matcher(gradlePropsFile.readText())
-    require(m.find()) { "$versionKey not found in gradle.properties" }
-    return m.group(1).trim()
-}
+release {
+    versionKey.set("skriptLspVersion")
+    projectName.set("LspSkript")
+    jarBaseName.set("LspSkript")
+    // shadowJar sets archiveClassifier to "" so the released artifact is
+    // LspSkript-<version>.jar, with no `-all` suffix.
+    jarClassifier.set("")
 
-fun parseVersion(v: String): Triple<Int, Int, Int> {
-    val m = Pattern.compile("""(\d+)\.(\d+)\.(\d+)""").matcher(v)
-    require(m.matches()) { "Version '$v' is not in semver (X.Y.Z) form." }
-    return Triple(m.group(1).toInt(), m.group(2).toInt(), m.group(3).toInt())
-}
-
-fun bump(v: String, part: String): String {
-    val (maj, min, pat) = parseVersion(v)
-    return when (part.lowercase()) {
-        "major" -> "${maj + 1}.0.0"
-        "minor" -> "$maj.${min + 1}.0"
-        "patch" -> "$maj.$min.${pat + 1}"
-        else -> error("Unknown bump part '$part' (use major|minor|patch)")
-    }
-}
-
-fun nextVersionFromProps(): String = if (project.hasProperty("releaseVersion")) {
-    (project.property("releaseVersion") as String).also { parseVersion(it) }
-} else {
-    bump(readVersion(), project.findProperty("part") as? String ?: "patch")
-}
-
-val dryRun: Boolean = project.hasProperty("dryRun")
-
-tasks.register("printNextVersion") {
-    group = "release"
-    description = "Print the version a release would produce."
-    doLast { println(nextVersionFromProps()) }
-}
-
-tasks.register("bumpVersion") {
-    group = "release"
-    description = "Write the next version into gradle.properties (no build/tag/gh)."
-    doLast {
-        val next = nextVersionFromProps()
-        writeVersion(next)
-        println("Version set to $next")
-    }
-}
-
-fun writeVersion(next: String) {
-    val propsText = gradlePropsFile.readText()
-    val updated = Pattern.compile("""(?m)^$versionKey=.*$""")
-        .matcher(propsText)
-        .replaceFirst("$versionKey=$next")
-    check(updated.contains("$versionKey=$next")) {
-        "Failed to write $versionKey into gradle.properties"
-    }
-    gradlePropsFile.writeText(updated)
-}
-
-// --- Release notes helpers -------------------------------------------------
-
-val skriptVersion: String =
-    run {
-        val m = Pattern.compile("""Skript:([\d.]+)""").matcher(file("build.gradle.kts").readText())
-        if (m.find()) m.group(1) else "unknown"
-    }
-
-val minecraftVersion: String =
-    run {
-        val yml = file("src/main/resources/paper-plugin.yml").readText()
-        val m = Pattern.compile("""api-version:\s*['"]?([\d.]+)['"]?""").matcher(yml)
-        if (m.find()) m.group(1) else "unknown"
-    }
-
-val pluginName: String =
-    run {
-        val yml = file("src/main/resources/paper-plugin.yml").readText()
-        val m = Pattern.compile("""(?m)^name:\s*(.+)$""").matcher(yml)
-        if (m.find()) m.group(1).trim() else "unknown"
-    }
-
-fun lastReleaseTag(): String? {
-    // Keep local tags in sync with the remote so releases always compare
-    // against the newest tag, even on a fresh clone or after another machine
-    // tagged. Fetch failure (no remote/network) is fine: fall back to local.
-    execOps.exec {
-        commandLine("git", "fetch", "--tags", "--quiet")
-        isIgnoreExitValue = true
-    }
-    val out = ByteArrayOutputStream()
-    execOps.exec {
-        commandLine("git", "tag", "--list", "v*.*.*", "--sort=-v:refname")
-        standardOutput = out
-    }
-    return out.toString().trim().lineSequence().firstOrNull()
-}
-
-// Release commits ("chore: release vX.Y.Z") are noise in the changelog: they
-// are created by the release task itself, after the previous tag.
-val releaseCommitPattern: Pattern = Pattern.compile("""chore: release v\d+\.\d+\.\d+""")
-
-fun commitsSince(from: String?, to: String): List<Pair<String, String>> {
-    // `to` may be a tag that does not exist yet: a normal release bumps the
-    // version but only tags at the very end. Fall back to HEAD then. When the
-    // tag exists (e.g. re-releasing an existing tag) the range is capped at it,
-    // so later commits never leak into the notes.
-    val end = run {
-        val out = ByteArrayOutputStream()
-        execOps.exec {
-            commandLine("git", "rev-parse", "--verify", "--quiet", "$to^{commit}")
-            standardOutput = out
-            isIgnoreExitValue = true
-        }
-        if (out.toString().isNotBlank()) to else "HEAD"
-    }
-    val range = if (from != null) "$from..$end" else end
-    val out = ByteArrayOutputStream()
-    execOps.exec {
-        commandLine("git", "log", "--pretty=format:%H %s", range)
-        standardOutput = out
-    }
-    return out.toString().trim().lineSequence()
-        .filter { it.isNotBlank() }
-        .filterNot { releaseCommitPattern.matcher(it.substringAfter(' ')).find() }
-        .map { line ->
-            val space = line.indexOf(' ')
-            line.substring(0, space) to line.substring(space + 1)
-        }
-        .toList()
-}
-
-fun buildReleaseNotes(tag: String, prevOverride: String? = null): String {
-    val prev = prevOverride ?: lastReleaseTag()?.takeIf { it != tag }
-    val commits = commitsSince(prev, tag)
-    val repoUrl = "https://github.com/RohanDaCoder/LspSkript"
-    val sb = StringBuilder()
-    sb.appendLine("## LspSkript $tag")
-    sb.appendLine()
-    sb.appendLine("**Plugin:** $pluginName ${tag.removePrefix("v")}")
-    sb.appendLine("**Paper API:** $minecraftVersion")
-    sb.appendLine("**Skript:** $skriptVersion")
-    sb.appendLine()
-    sb.appendLine("### Changes since ${prev ?: "the beginning"}")
-    sb.appendLine()
-    if (commits.isEmpty()) {
-        sb.appendLine("_No commits since the last release._")
-    } else {
-        for ((hash, subject) in commits) {
-            sb.appendLine("- [$hash]($repoUrl/commit/$hash) $subject")
-        }
-    }
-    if (prev != null) {
-        sb.appendLine()
-        sb.appendLine("[Changes since $prev]($repoUrl/compare/$prev...$tag)")
-    }
-    return sb.toString().trimEnd()
-}
-
-tasks.register("printReleaseNotes") {
-    group = "release"
-    description = "Print release notes for a tag. Pass -Ptag=vX.Y.Z and -PprevTag=vA.B.C to override the defaults (defaults: next version, latest tag)."
-    doLast {
-        val tag = project.findProperty("tag") as? String ?: "v${nextVersionFromProps()}"
-        val prev = project.findProperty("prevTag") as? String
-        println(buildReleaseNotes(tag, prev))
-    }
-}
-
-tasks.register("release") {
-    group = "release"
-    description = "Bump version, build the shadowJar, tag, and create a GitHub release via gh."
-
-    var propsBefore: String? = null
-
-    doFirst {
-        // Bump the version first so the subsequently-built jar carries it.
-        if (!dryRun) {
-            propsBefore = gradlePropsFile.readText()
-            writeVersion(nextVersionFromProps())
-        }
-    }
-
-    doLast {
-        // Dry-run preview targets the *next* version so the notes show exactly
-        // what a real release would contain (commits since the last tag).
-        val tag = if (dryRun) "v${nextVersionFromProps()}" else "v${readVersion()}"
-
-        if (dryRun) {
-            println("[dryRun] Would release $tag and build LspSkript-${tag.removePrefix("v")}.jar, then tag + gh release.")
-            println("---- release notes preview ----")
-            println(buildReleaseNotes(tag))
-            println("-------------------------------")
-            return@doLast
-        }
-
-        // Build the jar AFTER the version bump (nested invocation so the
-        // version written above is picked up by shadowJar's archive version).
-        val isWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
-        execOps.exec {
-            commandLine(
-                if (isWindows) rootProject.projectDir.resolve("gradlew.bat").path else "./gradlew",
-                ":skript-lsp:shadowJar",
-                "--no-daemon"
-            )
-        }
-
-        val jar = layout.buildDirectory.file("libs/LspSkript-${readVersion()}.jar").get().asFile
-        require(jar.exists()) { "Shadow jar not found at $jar" }
-
-        // Commit the version bump only when it actually changed. An explicit
-        // -PreleaseVersion equal to the current version (e.g. a first release
-        // of the already-tagged state) leaves the file untouched, so there is
-        // nothing to commit - but the tag and release are still created.
-        val changed = propsBefore?.let { it != gradlePropsFile.readText() } ?: false
-        if (changed) {
-            execOps.exec { commandLine("git", "add", gradlePropsFile.path) }
-            execOps.exec { commandLine("git", "commit", "-m", "chore: release $tag") }
-        }
-        execOps.exec { commandLine("git", "tag", "-a", tag, "-m", "Release $tag") }
-        execOps.exec { commandLine("git", "push", "origin", "HEAD", "--tags") }
-
-        // Create the GitHub release and upload the jar.
-        val notes = buildReleaseNotes(tag)
-        execOps.exec {
-            commandLine(
-                "gh", "release", "create", tag,
-                "--title", tag,
-                "--notes", notes,
-                jar.path
-            )
-        }
-
-        println("Released $tag and published GitHub release with ${jar.name}.")
+    notes.set { ctx ->
+        val repoUrl = repoUrl.get()
+        val skriptVer = patternGroup(skriptDependencyVersion, file("build.gradle.kts").readText())
+        val mcVer = patternGroup(paperApiVersion, file("src/main/resources/paper-plugin.yml").readText())
+        val name = projectName.get()
+        val pluginVer = ctx.tag.removePrefix("v")
+        buildString {
+            appendLine("## $name $pluginVer")
+            appendLine()
+            appendLine("**Plugin:** $name $pluginVer")
+            appendLine("**Paper API:** $mcVer")
+            appendLine("**Skript:** $skriptVer")
+            appendLine()
+            appendLine("### Changes since ${ctx.prevTag ?: "the beginning"}")
+            appendLine()
+            if (ctx.commits.isEmpty()) {
+                appendLine("_No commits since the last release._")
+            } else {
+                for (subject in ctx.commits) {
+                    appendLine("- $subject")
+                }
+            }
+            if (ctx.prevTag != null && repoUrl.isNotBlank()) {
+                appendLine()
+                appendLine("[Changes since ${ctx.prevTag}]($repoUrl/compare/${ctx.prevTag}...${ctx.tag})")
+            }
+        }.trimEnd()
     }
 }
