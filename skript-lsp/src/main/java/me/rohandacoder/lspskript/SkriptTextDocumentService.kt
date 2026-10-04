@@ -96,10 +96,15 @@ class SkriptTextDocumentService : TextDocumentService {
     }
 
     internal fun applyRangeEdit(text: String, range: Range, replacement: String): String {
-        val lines = text.split('\n').dropLastWhile { it.isEmpty() }
-        val startLine = range.start.line
+        // Kotlin's split('\n') KEEPS trailing empty fields, so a buffer ending
+        // in "\n" yields a real final empty line — the one the cursor sits on
+        // after the last newline. Do not drop trailing empties: they are
+        // addressable lines, not phantom ones. Indices are clamped instead.
+        val lines = text.split('\n')
+        val lastLine = lines.size - 1
+        val startLine = range.start.line.coerceIn(0, lastLine)
+        val endLine = range.end.line.coerceIn(0, lastLine)
         val startChar = range.start.character
-        val endLine = range.end.line
         val endChar = range.end.character
 
         val sb = buildString {
@@ -107,11 +112,10 @@ class SkriptTextDocumentService : TextDocumentService {
             val startLineText = lines[startLine]
             append(startLineText, 0, Math.min(startChar, startLineText.length))
             append(replacement)
-            if (endLine < lines.size) {
-                val endLineText = lines[endLine]
-                append(endLineText, Math.min(endChar, endLineText.length), endLineText.length)
-                for (i in endLine + 1 until lines.size) append('\n').append(lines[i])
-            }
+            // endLine is clamped into range, so the tail always exists.
+            val endLineText = lines[endLine]
+            append(endLineText, Math.min(endChar, endLineText.length), endLineText.length)
+            for (i in endLine + 1 until lines.size) append('\n').append(lines[i])
         }
         return sb
     }
