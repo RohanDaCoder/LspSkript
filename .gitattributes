@@ -1,29 +1,58 @@
-# Normalize line endings to LF on checkout/commit for text files.
+# ---------------------------------------------------------------------------
+# Line endings
+#
+# The repository stores LF for every text file, and the working tree is checked
+# out as LF too, so editing on Windows never produces a CRLF-only diff.
+#
+# .gitattributes always takes precedence over git config. This matters here
+# because core.autocrlf is set to `true` on this machine; without these rules
+# checkout would rewrite every source file to CRLF while the repo kept LF, so
+# every `git add` would report "CRLF will be replaced by LF".
+# ---------------------------------------------------------------------------
 * text=auto eol=lf
 
-# Shell scripts must stay LF so they execute on Unix servers.
+# --- Source files ----------------------------------------------------------
+# Listed explicitly rather than left to the `auto` heuristic, which has to
+# sniff every file and can misclassify short or unusual files as binary.
+# Kotlin, including the entire language server:
+*.kt text eol=lf
+# Gradle Kotlin DSL build scripts:
+*.kts text eol=lf
+# Gradle Groovy build scripts:
+*.gradle text eol=lf
+# Dependency pins:
+*.properties text eol=lf
+# vscode-skript extension client:
+*.js text eol=lf
+# Manifests and the TextMate grammar:
+*.json text eol=lf
+# Plugin and server config:
+*.yml text eol=lf
+*.yaml text eol=lf
+# Lockfile for the extension's dependencies:
+*.lock text eol=lf
+# README, docs/, vendored agent skills:
+*.md text eol=lf
+*.txt text eol=lf
+
+# --- Dotfiles --------------------------------------------------------------
+.gitignore text eol=lf
+.gitmodules text eol=lf
+.gitattributes text eol=lf
+.vscodeignore text eol=lf
+
+# --- Executables -----------------------------------------------------------
+# Shell scripts stay LF so they execute on Unix servers.
 *.sh text eol=lf
 *.bash text eol=lf
-
-# Gradle wrapper script is a shell script executed on the server.
 gradlew text eol=lf
 
-# Windows batch files keep CRLF.
+# Windows batch files keep CRLF, as cmd.exe expects.
 *.bat text eol=crlf
 gradlew.bat text eol=crlf
 
-# Source files.
-*.java text
-*.cson text
-*.json text
-*.js text
-*.md text
-*.yml text
-*.yaml text
-*.gradle text
-*.properties text
-
-# Binary / archive files should never be normalized.
+# --- Binary ----------------------------------------------------------------
+# Never normalized; line-ending conversion would corrupt them.
 *.jar binary
 *.vsix binary
 *.png binary
