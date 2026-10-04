@@ -9,6 +9,7 @@ import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.TextEdit
 import org.skriptlang.skript.registration.SyntaxInfo
 import org.skriptlang.skript.registration.SyntaxRegistry
+import org.skriptlang.skript.bukkit.registration.BukkitSyntaxInfos
 import java.util.*
 import java.util.regex.Matcher
 import java.util.regex.Pattern
@@ -104,6 +105,10 @@ class CompletionProvider {
         val reg: SyntaxRegistry = SyntaxRegistryAccess.registry()
         addFrom(reg.syntaxes(SyntaxRegistry.STRUCTURE), items, prefix, range, CompletionItemKind.Class)
         addFrom(reg.syntaxes(SyntaxRegistry.SECTION), items, prefix, range, CompletionItemKind.Class)
+        // Events are NOT under SyntaxRegistry.STRUCTURE. `BukkitSyntaxInfos.Event.KEY`
+        // is a plain Key with no parent key, even though SkriptEvent extends Structure,
+        // so iterating STRUCTURE alone yields zero `on <event>:` completions.
+        addFrom(reg.syntaxes(BukkitSyntaxInfos.Event.KEY), items, prefix, range, CompletionItemKind.Event)
     }
 
     private fun addEffectsConditions(items: MutableList<CompletionItem>, prefix: String, range: Range) {
@@ -177,7 +182,11 @@ class CompletionProvider {
         val item = CompletionItem()
         item.label = pattern
         item.kind = kind
-        item.detail = if (info.origin() == null) "Skript" else info.origin().toString()
+        // `origin()` is never null — the builder defaults it to Origin.UNKNOWN —
+        // and `Origin` does not override toString(), so the old null check plus
+        // toString() rendered "…OriginImpl$UnknownOrigin@1a2b3c" in the UI.
+        // `name()` is the documented accessor.
+        item.detail = info.origin().name()
 
         // Build a snippet: replace %type% with ${n:type} tabstops.
         val snippet = toSnippet(pattern)
