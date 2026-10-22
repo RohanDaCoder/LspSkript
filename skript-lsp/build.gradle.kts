@@ -34,7 +34,7 @@ repositories {
 dependencies {
     // The real Skript runtime (prebuilt). Provides all public parser/metadata APIs.
     // compileOnly because Skript is present at runtime in the server's plugins/ folder.
-    compileOnly("com.github.SkriptLang:Skript:2.16.0")
+    compileOnly("com.github.SkriptLang:Skript:2.17.1")
     // Bukkit/Spigot/Paper API for type references (also provided at runtime).
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
 
