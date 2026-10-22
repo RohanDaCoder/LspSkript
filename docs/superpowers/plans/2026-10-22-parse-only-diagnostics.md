@@ -31,6 +31,7 @@
 - Kotlin conventions: no `!!` without a documented justification, no `GlobalScope`, sealed classes for state modelling, KDoc on public declarations.
 - Every task ends with `:skript-lsp:build` green and `:skript-lsp:check` green.
 - `kotlinx-coroutines-core` **is** adopted, in Task 9. Paper does not bundle it, so it must be shaded. `kotlinx-coroutines-core` only, never `-all`.
+- The JUnit Platform migration is **deferred**. The tests stay on JUnit 4 (`junit:junit:4.13.2`); nothing in this plan needs the Platform, and Task 9's `runTest` works as a plain JUnit 4 test method.
 
 ---
 
@@ -124,26 +125,77 @@ comments:
     active: true
 ```
 
-- [ ] **Step 5: Wire the plugins into `skript-lsp/build.gradle.kts`**
+- [ ] **Step 5: Wire the linters into `skript-lsp/build.gradle.kts`**
+
+**ktlint runs as the standalone CLI, not as a Gradle plugin.** The ktlint
+Gradle plugin has not kept pace with Gradle 9, and the standalone CLI is what
+the design spec calls for. Resolve the CLI as a normal configuration and run
+it with `JavaExec`:
+
+```kotlin
+val ktlint by configurations.creating
+
+dependencies {
+    ktlint("com.pinterest.ktlint:ktlint-cli:1.8.0")
+}
+
+val ktlintCheck by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Runs ktlint over the module's Kotlin sources."
+    classpath = ktlint
+    mainClass.set("com.pinterest.ktlint.cli.internal.KtlintCommandLine")
+    args("check", "src/main/kotlin", "src/test/kotlin")
+}
+
+tasks.named("check") { dependsOn(ktlintCheck) }
+```
+
+If the CLI's entry point differs in 1.8.0, find it with `jar tf` on the
+resolved jar, or run the CLI with `--help`, and correct `mainClass`.
+
+**detekt: start with 1.23.8, and fall back to 2.0.0-alpha.6 if it does not
+work.** detekt 1.23.8 embeds a Kotlin 1.9 compiler, so it may not parse
+Kotlin 2.3 sources, and its Gradle plugin predates Gradle 9. The design spec
+anticipates this: *"detekt 1.23.8 → dev.detekt:2.0.0-alpha.6 when we use
+Kotlin ≥2.1 syntax."* This project uses Kotlin 2.3.0, so expect the fallback.
 
 Add to the `plugins` block:
+
 ```kotlin
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
-    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
 ```
 
 Add at the top level of the file:
+
 ```kotlin
 detekt {
     toolVersion = "1.23.8"
     buildUponDefaultConfig = false
     config.setFrom(rootProject.file("config/detekt/detekt.yml"))
 }
+```
 
-ktlint {
-    version.set("1.8.0")
+**If detekt 1.23.8 fails** — either the Gradle plugin is incompatible with
+Gradle 9.4, or it cannot parse the Kotlin 2.3 sources — switch to:
+
+```kotlin
+    id("io.gitlab.arturbosch.detekt") version "2.0.0-alpha.6"
+```
+
+```kotlin
+detekt {
+    toolVersion = "2.0.0-alpha.6"
+    buildUponDefaultConfig = false
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
 }
 ```
+
+detekt 2.0's configuration format differs from 1.x: rules are grouped
+differently, and some 1.x rule names no longer exist. Regenerate a config
+for 2.0 with the task detekt provides, then re-apply the rule set from Step 4
+— the *intent* (a 120-column limit, no wildcard imports, documented public
+API, at most two return points) is what matters, not the exact YAML shape.
+**Say in the report which version you settled on and why.**
 
 - [ ] **Step 6: Run the linters and record the findings**
 
