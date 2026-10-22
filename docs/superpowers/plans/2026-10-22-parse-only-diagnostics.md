@@ -1028,6 +1028,7 @@ import ch.njol.skript.config.Config
 import ch.njol.skript.config.Node
 import ch.njol.skript.config.SectionNode
 import ch.njol.skript.lang.SkriptParser
+import ch.njol.skript.lang.function.FunctionEvent
 import ch.njol.skript.lang.function.Functions
 import ch.njol.skript.lang.function.Signature
 import ch.njol.skript.lang.parser.ParserInstance
@@ -1037,7 +1038,9 @@ import ch.njol.skript.structures.StructFunction
 import ch.njol.skript.structures.StructVariables
 import com.mojang.brigadier.tree.LiteralCommandNode
 import org.skriptlang.skript.bukkit.command.custom.ScriptCommandRegistrar
+import org.skriptlang.skript.bukkit.command.elements.structures.StructCommand
 import org.skriptlang.skript.bukkit.command.elements.structures.util.SubCommandEntryData
+import org.skriptlang.skript.common.function.FunctionParser
 import org.skriptlang.skript.lang.script.Script
 import org.skriptlang.skript.lang.structure.Structure
 import java.io.ByteArrayInputStream
@@ -1223,12 +1226,12 @@ class SkriptParseEngine {
             }
             parser.setCurrentStructure(entry.structure)
             parser.setNode(entry.node)
-            val signature = FunctionParserBridge.parse(
-                namespace = namespace,
-                name = matcher.group("name"),
-                args = matcher.group("args"),
-                returns = matcher.group("returns"),
-                local = true,
+            val signature = FunctionParser.parse(
+                namespace,
+                matcher.group("name"),
+                matcher.group("args"),
+                matcher.group("returns"),
+                true,
             ) ?: continue
             if (Functions.registerSignature(signature) == null) continue
             registered += signature
@@ -1293,7 +1296,7 @@ class SkriptParseEngine {
                     // load() creates real global variables.
                     entry.structure is StructVariables -> Unit
                     // load() registers the command; we do the diagnostics by hand.
-                    isCommandStructure(entry.structure) -> parseCommand(entry, parser)
+                    entry.structure is StructCommand -> parseCommand(entry, parser)
                     else -> entry.structure.load()
                 }
             } catch (e: Exception) {
@@ -1305,17 +1308,136 @@ class SkriptParseEngine {
 }
 ```
 
-**The pieces this sketch leaves open — fill them in from the design spec, not
-from guesswork:**
+**The pieces this sketch leaves open — here is what each one is, verified
+against Skript 2.17.1:**
 
-| Piece | Where to get it |
+#### `FunctionParserBridge.parse`
+
+There is no such bridge. Call
+`org.skriptlang.skript.common.function.FunctionParser.parse(script, name, args, returns, local)`
+directly — it is public static and returns a `Signature<?>` or null.
+
+#### `isCommandStructure`
+
+The live class is
+`org.skriptlang.skript.bukkit.command.elements.structures.StructCommand`.
+The deprecated `ch.njol.skript.structures.StructCommand` is **not registered**
+and its `init()` returns false, so it never appears in a parse result.
+
+#### `parseCommand`
+
+`StructCommand.load()` does three things: it parses the command through
+`SubCommandEntryData`, it validates the result, and it registers the command
+with `ScriptCommandRegistrar`. The first two produce the diagnostics; the
+third has no clean undo, so it is skipped.
+
+```kotlin
+    /**
+     * Reproduce the 2.17 `StructCommand.load()` diagnostics without
+     * registering the command.
+     */
+    private fun parseCommand(entry: ParsedStructure, parser: ParserInstance) {
+        val rootNode = entry.node as? SectionNode ?: return
+        parser.setCurrentStructure(entry.structure)
+        parser.setNode(rootNode)
+        val result = SubCommandEntryData("command", false, false).getValue(rootNode) ?: return
+        if (result.arguments().size != 1) {
+            Skript.error("A command must have a name.")
+            return
+        }
+        val built = result.arguments().first().builder().build()
+        val node = built as? LiteralCommandNode<*> ?: run {
+            Skript.error("A command must have a name.")
+            return
+        }
+        val existing = ScriptCommandRegistrar.getCommand(node.literal)
+        if (existing != null) {
+            Skript.error(
+                "A command with the name /" + node.literal +
+                    " is already defined in the script '" + existing.script().nameAndPath() + ".sk'",
+            )
+        }
+    }
+```
+
+The types: `SubCommandEntryData.Result` is a **record** with
+`arguments(): List<ScriptArgumentBuilder>`; `ScriptArgumentBuilder` is a record
+with `builder(): ArgumentBuilder<CommandSourceStack, ?>`, whose `build()` gives
+an `ArgumentNode`. `ScriptBrigadierCommand` is a record with
+`script(): Script` and `node(): LiteralCommandNode<CommandSourceStack>`.
+`LiteralCommandNode.getLiteral()` is a brigadier getter, so in Kotlin it is the
+property `node.literal`.
+
+**Java record components are methods, not properties, in Kotlin.** Call
+`result.arguments()` and `existing.script()` — do not write
+`result.arguments` or `existing.script`.
+
+`io.papermc.paper.command.brigadier.CommandSourceStack` appears only in
+generics, so it never has to be named in our source. Skript 2.17.1's command
+support is Paper-only anyway, and so is this plugin.
+
+#### The function body
+
+```kotlin
+    // in the load phase, for a StructFunction:
+    val signature = signatures[entry] ?: continue
+    parser.setCurrentEvent("local function", FunctionEvent::class.java)
+    try {
+        Functions.loadFunction(script, entry.node as SectionNode, signature)
+    } finally {
+        parser.deleteCurrentEvent()
+    }
+```
+
+`Functions.loadFunction(script, node, signature)` is public static. Because the
+signature is local, the resulting `Function` lands in our namespace and not in
+the global bucket (`Functions.java:140-144`). `FunctionEvent` is
+`ch.njol.skript.lang.function.FunctionEvent`.
+
+#### `diagnostics(handler, buffer)`
+
+Map the handler's log entries through `ParseDiagnostics` (Task 5), then widen
+each range to the real end of its line using the `TextBuffer`:
+`ParseDiagnostics` sets the range to the line start, so replace the end with
+`Position(line, buffer.lineText(line).length)`.
+
+**The log handler must be started before the `Config` is constructed.** The
+config parser logs its own errors — *"indentation error: expected 1 tab, but
+found 2 spaces"* — and those are diagnostics we want.
+
+`RetainingLogHandler.getLog()` returns a **live view** of a mutable deque and
+has a side effect. Copy it: `handler.log.toList()`.
+
+#### `sections(config)` and `statements(config)`
+
+Walk the config tree. The facts:
+
+| What | How |
 |---|---|
-| `FunctionParserBridge.parse` | `org.skriptlang.skript.common.function.FunctionParser.parse(script, name, args, returns, local)` is public. Call it directly; there is no need for a wrapper — import it and call it. |
-| `isCommandStructure` | The live class is `org.skriptlang.skript.bukkit.command.elements.structures.StructCommand`. The deprecated `ch.njol.skript.structures.StructCommand` is **not registered** and its `init()` returns false, so it never appears. Import the live one. |
-| `parseCommand` | Reproduce `StructCommand.load()` up to, but not including, the registration. See the design spec, section 4.4. |
-| `diagnostics(handler, buffer)` | Map the handler's log entries through `ParseDiagnostics` (Task 5), then widen each range to the real end of its line using the `TextBuffer`. `ParseDiagnostics` sets the range to the line start; the engine fills in the end. |
-| `sections(config)` / `statements(config)` | Walk the `Config`'s node tree. `SectionNode.getKey()` is the header, `Node.getLine()` is **1-based** (subtract one), `Node.getIndentation()` is the indentation. A section's `endLine` is the largest line among its descendants, or its own header line when it has none. |
-| `FunctionEvent` | `ch.njol.skript.lang.function.FunctionEvent` — used for `parser.setCurrentEvent` around a function body. |
+| The root | `config.mainNode` — a `SectionNode` |
+| A section's header | `node.key` — **without** the trailing colon, e.g. `"on join"` |
+| A node's line | `node.line` — **1-based**; subtract one for LSP |
+| A node's indentation | `node.indentation` — the indentation string |
+| A nested section | the child is a `SectionNode` |
+| A statement | the child is any other `Node` — a `SimpleNode`, an `InvalidNode` (bad indentation) or a `VoidNode` (a comment or blank line) |
+
+`InvalidNode` and `VoidNode` are **not** statements. An `InvalidNode` already
+produced an *"indentation error"* diagnostic, and a `VoidNode` is a comment.
+Only report a child as a statement when it is neither.
+
+A section's `endLine` is the largest line among **all** of its descendants —
+its statements *and* its nested sections' end lines — or its own header line
+when it has no descendants.
+
+**Empty sections are kept.** `allowEmptySections = false` does not drop them;
+it makes the config parser emit Skript's *"empty section"* warning, which
+matches what Skript's own loader does.
+
+#### The `Config` file name and namespace
+
+`Config`'s file name is also the function namespace, and the call site looks
+it up verbatim (`FunctionReferenceParser.java:124`). Use **one** value for
+both: `namespaceFor(docId)`.
 
 **Two rules the cleanup depends on:**
 
@@ -1518,7 +1640,10 @@ class ParseBridge(
      */
     fun parse(docId: String, uri: String, content: String, realFile: File?): DocumentSnapshot {
         return if (parseOnly) {
-            parser.parse(docId, uri, content, realFile)
+            // The parse MUST run on the Bukkit main thread. `Functions.namespaces`,
+            // `Functions.globalFunctions`, `FunctionRegistry`'s inner maps and
+            // `Classes.superClassInfos` are all plain unsynchronised `HashMap`s.
+            LspUtils.onMainThread { parser.parse(docId, uri, content, realFile) }
         } else {
             DocumentSnapshot(
                 uri = uri,
