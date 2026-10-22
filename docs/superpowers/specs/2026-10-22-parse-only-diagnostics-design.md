@@ -31,10 +31,9 @@ None. All four research threads have reported and their findings are folded in:
 - **Local function registration** — a synthetic per-document namespace with
   `local = true`; `local = false` permanently breaks the server's real function.
   §4.3
-- **The verification rig** — Paper via `fill.papermc.io/v3`, Skript's own
-  `java21/paper-1.21.11` start command, a stdlib-only Python LSP client, and a
-  `log "…" to file` probe that makes the `on load:` side effect directly
-  observable. §9.1
+- **The verification approach** — differential comparison on a development
+  server: the parse-only path and the legacy load path must produce the same
+  diagnostics, and the `on load:` side effect must be gone. §9.1
 
 ## 3. Architecture
 
@@ -129,14 +128,18 @@ it mid-parse sees the last complete snapshot, never a half-built one.
 ### 4.1 Sequence
 
 ```kotlin
-// 1. Config from text. No file is read; `file` is only stored (Config.java:62-63).
+// 1. Config from text. `file` is only stored, never read (Config.java:58-62).
 //    simple MUST be true  — StructOptions/Variables/Aliases call convertToEntries,
 //    which throws "config is not simple" otherwise (SectionNode.java:422-423).
 //    fileName MUST end in ".sk" and be >= 3 chars — Variable.java:209 does
 //    getFileName().substring(0, -3) and would throw StringIndexOutOfBoundsException.
+//    fileName is ALSO the function namespace: the call-site lookup uses
+//    parser.getCurrentScript().getConfig().getFileName() verbatim
+//    (FunctionReferenceParser.java:124), so it must equal the string handed
+//    to FunctionParser.parse.
 val config = Config(
     ByteArrayInputStream(content.toByteArray(UTF_8)),
-    "lsp-diagnostic.sk",   // synthetic, ends in .sk, >= 3 chars
+    "__lsp__$docId.sk",     // stable per document
     realFileOrNull,         // the real path when it exists, so `auto reload:` does not false-error
     simple = true,
     allowEmptySections = false,
@@ -150,8 +153,9 @@ val config = Config(
 val script = Script(config, mutableListOf())
 
 // 3. Activate the parser, on the thread that will parse (ParserInstance is a
-//    ThreadLocal — ParserInstance.java:34). setActive is public; the
-//    @ApiStatus.Internal marker is advisory only, not @Deprecated.
+//    ThreadLocal — ParserInstance.java:34). setActive is public and marked
+//    @ApiStatus.Internal: advisory only, not @Deprecated. It also calls
+//    reset(), which clears the per-parse data map (ParserInstance.java:63-64).
 val parser = ParserInstance.get()
 parser.setActive(script)
 try {
@@ -162,29 +166,17 @@ try {
         if (!SkriptParser.validateLine(line)) continue
         val structure = Structure.parse(line, node, "Can't understand this structure: $line") ?: continue
         parsed += structure
-
-        // 5. Parse the BODY of an event section ourselves.
-        //    Structure.parse does NOT do this — the body is parsed in
-        //    SkriptEvent.load() (SkriptEvent.java:133), which is load-phase.
-        if (structure is StructEvent) {
-            val event = structure.skriptEvent
-            if (event != null) {
-                // MUST be set before loadItems, or every EventRestrictedSyntax
-                // element yields a false "can only be used in ..." error
-                // (SkriptParser.java:328-337, ParserInstance.java:257-259).
-                parser.setCurrentEvent(event.name, event.eventClasses)
-                try {
-                    ScriptLoader.loadItems(sourceNodeOf(event))
-                } finally {
-                    parser.deleteCurrentEvent()
-                }
-            }
-        }
     }
+
+    // 5. Load phase. preLoad() and load() parse the bodies and produce the
+    //    diagnostics; postLoad() is NEVER called, so `on load:` never fires
+    //    and no Bukkit listener is registered.
+    //    Two structures have a load() that writes server state, and one
+    //    structure is skipped outright — see the table in §4.5.
 } finally {
     // setInactive() resets: currentStructure, currentEventName, currentEvents,
-// currentSections, hasDelayBefore, node, dataMap, expressionParseCache,
-// literalParseCache, and the HintManager (all scopes dropped).
+    // currentSections, hasDelayBefore, node, dataMap, expressionParseCache,
+    // literalParseCache, and the HintManager (all scopes dropped).
     parser.setInactive()
 }
 ```
@@ -193,10 +185,11 @@ try {
 
 | Method | Why not |
 |---|---|
-| `Structure.postLoad()` | Fires `on load:` (`EvtScript.postLoad()`) and registers Bukkit listeners and commands |
-| `StructCommand.load()` | `ScriptCommandRegistrar.register` queues into `PENDING_REGISTRATIONS` with **no clean undo** (`ScriptCommandRegistrar.java:43, 105`) — the leak causes a spurious "command already defined" error on every later parse |
-| `StructVariables.load()` | `Task.callSync` + `Variables.setVariable` — creates real global variables |
-| `StructFunction.preLoad()` | Registers the signature **globally** (`Functions.registerSignature`, `StructFunction.java:128`) and can permanently shadow a real server function |
+| `Structure.postLoad()` | `EvtScript.postLoad()` fires `on load:`; `SkriptEvent.postLoad()` registers Bukkit listeners; the 2.17 `StructCommand.postLoad()` processes command registrations; `StructAutoReload.postLoad()` starts a repeating task that reloads the script |
+| `StructFunction.preLoad()` and `.load()` | We register the signature ourselves with `local = true` and call `Functions.loadFunction` ourselves, so the body is still parsed but nothing global is touched (§4.3) |
+| The 2.17 `StructCommand.load()` | `ScriptCommandRegistrar.register(command)` queues into `PENDING_REGISTRATIONS` with **no clean undo** (`ScriptCommandRegistrar.java:43, 105`) — the leak causes a spurious *"command already defined"* on every later parse. We replicate the two diagnostics instead (§4.4) |
+| `StructVariables.load()` | `Task.callSync` + `Variables.setVariable` — creates real global variables. Its `preLoad()` is safe and **is** called |
+| `StructAliases` — the whole structure | `init()` calls `Aliases.createScriptAliases(script)` and `scriptAliases.parser.load(node)`, registering aliases into Skript's global alias registry. `Aliases` has no per-script removal API, so the structure is skipped outright (§4.5) |
 | `ScriptLoader.loadScripts(...)` | The whole thing we are removing |
 
 ### 4.3 Function-call resolution
@@ -225,7 +218,32 @@ val config = Config(inputStream, ns, /*file*/ null, simple = true, allowEmptySec
 val sig = FunctionParser.parse(ns, name, args, returns, /*local*/ true) ?: continue
 Functions.registerSignature(sig)     // local => touches no global state
 registered += sig                     // for cleanup
+
+// Then, in the load phase, parse the function's BODY. Functions.loadFunction is
+// public and takes the signature we just registered; because that signature is
+// local, the resulting Function lands in OUR namespace and not the global
+// bucket (Functions.java:140-144). Skript's own loader does exactly this in
+// StructFunction.load() — we just feed it our own signature.
+Functions.loadFunction(script, node, sig)
 ```
+
+**The function's body is still parsed.** `Functions.loadFunction` constructs a
+`ScriptFunction`, which is what parses the body — so a syntax error inside a
+function body is still reported. Skipping `StructFunction.preLoad()` alone would
+have lost it.
+
+**The signature is parsed from the header text**, with the same pattern Skript
+uses (`StructFunction.java:84`):
+
+```kotlin
+private val FUNCTION_SIGNATURE = Pattern.compile(
+    "^(?:local )?function (?<name>${Functions.functionNamePattern})" +
+        "\\((?<args>.*?)\\)(?:\\s*(?:->|::| returns )\\s*(?<returns>.+))?$"
+)
+```
+
+`Functions.functionNamePattern` is public, so the pattern can be rebuilt exactly
+rather than copied.
 
 **Always `local = true`.** `local` does not change the namespace *string* — it
 selects the registry bucket, and whether `Functions.globalFunctions` is written
@@ -275,7 +293,7 @@ emit *"The function 'x' from the script 'y' no longer exists."*
 
 ### 4.4 Command sections
 
-In 2.17.1 `StructCommand.init()` (`:93-97`) only stores the root node; **all** command
+In 2.17.1 the live command structure is `org.skriptlang.skript.bukkit.command.elements.structures.StructCommand`; its `init()` (`:93-97`) only stores the root node; **all** command
 diagnostics live in `load()` (`:99-126`), which we skip — because `load()` calls
 `ScriptCommandRegistrar.register(command)` (`:122`), which queues into
 `PENDING_REGISTRATIONS` with **no clean undo** (`ScriptCommandRegistrar.java:43, 105`).
@@ -330,9 +348,37 @@ are replicable without registering:
 the gap for command bodies. We do **not** fall back to `loadScripts`, because that
 silently reintroduces the `on load:` execution this change exists to remove.
 
-### 4.5 Traps, recorded
+### 4.5 Every structure, and what the engine does with it
+
+Skript 2.17.1 registers ten structures. `Structure.parse` returns one of them, or
+null. The engine dispatches on the returned type. This table was read off the
+Skript 2.17.1 source, not guessed.
+
+| Structure | `init()` | `preLoad()` | `load()` | `postLoad()` | The engine |
+|---|---|---|---|---|---|
+| `StructAliases` (prio 200) | **registers aliases globally** | — | `return true` | — | **Skipped** — the node is never parsed |
+| `StructAutoReload` (prio 10) | errors unless `ScriptLoader.isAsync()`; errors unless `config.getFile()` exists | — | `return true` | **starts a repeating task that reloads the script** | Parsed; `postLoad()` is never called. The `Config` gets the real file when it exists, so there is no spurious *"auto reload.file not found"* |
+| `StructCommand` (2.17, prio 500) | stores the root node | — | parses, validates, **registers the command** | processes registrations | Parsed and validated by hand (§4.4); never registered |
+| `StructEvent` (prio 1000) | — | `event.preLoad()` — a no-op | `event.load()` — parses the body and creates the `Trigger` | `SkriptEventHandler.registerBukkitEvents(...)` | `preLoad()` and `load()` are called; `postLoad()` is not |
+| `StructExample` (prio 1000) | — | — | `ScriptLoader.loadItems(source)` — parses the body | — | `load()` is called; it registers nothing |
+| `StructFunction` (prio 400) | — | parses and registers the signature | `Functions.loadFunction` | `Functions.validateFunctions()` | Handled by hand (§4.3) |
+| `StructOptions` (prio 100) | `convertToEntries(-1)`, stores options **on the Script** | — | `return true` | — | Safe — called normally |
+| `StructUsing` (prio 15) | `parser.addExperiment(...)` — parser-local | — | `return true` | — | Safe — called normally |
+| `StructVariables` (prio 1000) | — | parses the definitions, stores them **on the Script** | **`Variables.setVariable` — creates real global variables** | — | `preLoad()` is called; `load()` is not |
+| `ch.njol.skript.structures.StructCommand` | `return false` | — | `return false` | — | **Deprecated and not registered.** The live class is `org.skriptlang.skript.bukkit.command.elements.structures.StructCommand` |
+
+Two `load()` methods are skipped and one structure is skipped outright. Everything
+else is called exactly as Skript would call it.
+
+`Structure.parse` calls `init()`, so a structure's `init()` side effect happens
+whenever the structure is parsed. That is why `StructAliases` is skipped at the
+node level rather than at the `load()` level — by the time we could intervene, the
+aliases would already be registered.
+
+### 4.6 Traps, recorded
 
 - `Config` must be `simple = true`; the file name must end in `.sk` and be ≥ 3 chars.
+- `ParserInstance` is `ch.njol.skript.lang.parser.ParserInstance`.
 - A fresh `Script` per parse.
 - `setCurrentEvent` before `loadItems`.
 - `Config`'s constructor **closes the InputStream** (`Config.java:60`).
@@ -447,64 +493,36 @@ on `didClose`.
 
 ## 9. Testing
 
-### 9.1 The rig (prerequisite, built first)
+### 9.1 Verification on a development server
 
-`dev-server/` in the repo, with `dev-server/run/` gitignored (it holds a 55 MB jar
-and a world).
+There is no committed test rig. Verification happens against a **development
+server** — the same server the maintainer already runs — because that is the
+environment the change has to be correct in.
 
-| File | Purpose |
+**What must be observed, and how:**
+
+| Check | How |
 |---|---|
-| `download.ps1` | Resolve Paper via `fill.papermc.io/v3` — the old `api.papermc.io/v2` is **dead**. `GET /v3/projects/paper/versions/1.21.11/builds/latest` → `.id` (build **132**) and `.downloads."server:default".url` + `.checksums.sha256`. Download to a temp name, verify the SHA-256, then move into place — a truncated jar must never be used. Then fetch `https://repo.skriptlang.org/releases/com/github/SkriptLang/Skript/2.17.1/Skript-2.17.1.jar` → `run/plugins/Skript.jar`, and write `run/server.properties`. Use a descriptive User-Agent; PaperMC's policy requires one |
-| `server.properties` | Flat world, no structures, no spawns, `view-distance=4`, `online-mode=false`, `level-seed=0`. Modelled on Skript's own `runner_data/server.properties.generic` |
-| `fixtures/syntax-error.sk` | A small script with one deliberate error. Proves the diagnostics path is **alive after** the rewrite — a regression guard against "the rewrite silently produces zero diagnostics" |
-| `fixtures/on-load-probe.sk` | An `on load:` that writes a marker. Delivered over LSP, **never** placed in `plugins/Skript/scripts/` — otherwise it runs at server start and the assertion is meaningless |
-| `lsp_client.py` | A stdlib-only Python LSP client. `Content-Length: N\r\n\r\n` + UTF-8 body, **N in bytes**. `initialize` → wait for the response → `initialized` → `didOpen` → read `publishDiagnostics`. The client must not send anything before the `initialize` response |
-| `smoke.ps1` | Build the jar → provision → start → wait for readiness → probe → assert → tear down. Prints a PASS/FAIL table |
+| Diagnostics still arrive | Open a `.sk` file with a deliberate error in the editor; the squiggle appears. |
+| Diagnostics did not regress | Compare the same file's diagnostics before and after the change. |
+| `on load:` no longer executes | Put `log "LSP-PROBE" to file "lsp-probe.log"` in an `on load:` block, open the file in the editor, and confirm the file is never created. |
+| The server is unaffected | Watch the console while typing: no script-load messages, no command registrations, no listener registrations. |
+| The server stays responsive | Type quickly; the server does not stall and logs no warnings. |
 
-**The probe is a file write, not a `set {variable}`.** Skript's `EffLog` supports
-`log "<marker>" to file "lsp-onload-probe.log"`, which appends to
-`plugins/Skript/logs/` and **flushes per line** — a real, deterministic, immediately
-visible marker. A global variable has no out-of-band observation channel and would
-write to the server's persistent store.
+**The `on load:` probe must be delivered over LSP**, never placed in
+`plugins/Skript/scripts/`. A file in the scripts folder is loaded by the
+server at startup, which proves nothing about the editor path.
 
-**Use a unique marker per run** (a UUID fragment) so a stale marker cannot produce
-a false positive.
+**The probe is a file write, not a variable.** Skript's `EffLog` supports
+`log "<marker>" to file "lsp-probe.log"`, which appends to
+`plugins/Skript/logs/` and flushes after every line. A global variable has no
+out-of-band observation channel and would pollute the server's persistent
+variable store.
 
-**The server must run on JDK 25** if the plugin is still Java 25 bytecode — the
-default `java` here is Temurin 21. Retargeting the plugin to Java 21 (§8) removes
-that requirement entirely and is the better fix.
-
-**Start command** (Skript's own `java21/paper-1.21.11.json` environment, plus the
-flags that make a CI-style run bearable):
-
-```
-java -Xms1G -Xmx2G \
-  -Dcom.mojang.eula.agree=true \
-  -Ddisable.watchdog=true \
-  -Dpaper.disableStartupVersionCheck=true \
-  -Dpaper.disableOldApiSupport=true \
-  -jar paperclip.jar --nogui --nojline -p 25599
-```
-
-`-Dcom.mojang.eula.agree=true` skips the `eula.txt` check entirely — the file need
-not pre-exist. **This accepts Mojang's EULA on the operator's behalf**, so it
-needs the maintainer's explicit go-ahead.
-
-**Readiness gate** — wait for **all three** of these, with a 180 s timeout:
-
-| Signal | Proves |
-|---|---|
-| `Done (` | the server is up |
-| `LspSkript listening on port` | our LSP socket is bound |
-| `Finished loading.` | Skript's syntax registry is populated |
-
-The third matters most: Skript's script load is **asynchronous**, so without it
-the first `didOpen` races Skript's own load.
-
-**The rig is red today and green after the rewrite.** That is the whole point of
-it: with today's `loadScripts`-based `ParseBridge`, the diagnostics arrive **and**
-the marker file exists. After the rewrite, the diagnostics still arrive and the
-marker does not. Run it before the change to establish the red baseline.
+**The `parse-only` flag is the escape hatch.** If the parse-only path turns out
+to be missing a diagnostic, the maintainer sets `parse-only: false` in
+`config.yml` and gets the old behaviour back — knowingly, with the `on load:`
+side effect documented in the config file.
 
 ### 9.2 Unit tests (no server)
 
@@ -524,33 +542,43 @@ orchestration — debounce, supersession, buffer handling — without a server.
 `ParserInstance.get()` returns a stub whose `getCurrentScript()` is null, which
 explodes deep inside Skript's parser.
 
-### 9.4 Golden tests
+### 9.4 Differential comparison
 
-Once the rig exists, snapshot the diagnostics for the fixture corpus and diff. This
-is what catches Skript API drift — and when 2.18 lands, the diff names the construct
-that changed.
+The parse-only path replaces Skript's own load path, so the only meaningful
+check is whether the two produce the same diagnostics for the same input.
+
+Before the change, record the diagnostics for a set of scripts covering the
+constructs that matter: sections, conditions, effects, expressions, functions
+(local and global), commands, variables, and a deliberate syntax error. After
+the change, compare.
+
+The two paths are expected to differ in exactly one way: the parse-only path
+must not produce side effects. Everything else should match message for
+message.
+
+Keep the comparison scripts in the repository, so the comparison can be
+repeated after a Skript upgrade.
 
 ## 10. Rollout
 
 | Stage | Content | Gate |
 |---|---|---|
-| 0 | The rig | It runs and reproduces today's diagnostics |
-| 1 | LSP4J 1.0.0, detekt/ktlint/JUnit Platform, `.editorconfig`, source move | Build green, `check` passes |
-| 2 | `TextBuffer` + diagnostics quality + readiness gate + async guard | Rig shows unchanged diagnostics |
-| 3 | The parse engine behind `parse-only: false` | Both paths agree on the fixtures |
-| 4 | `parse-only: true` by default | Marker file absent; diagnostics match |
-| 5 | Hover, completion, symbols, section entries | Feature-by-feature, each behind the snapshot |
+| 0 | LSP4J 1.0.0, detekt/ktlint/JUnit Platform, `.editorconfig`, source move | Build green, `check` passes |
+| 1 | `TextBuffer` + diagnostics quality + readiness gate + async guard | Diagnostics unchanged on the dev server |
+| 2 | The parse engine behind `parse-only: false` | Both paths agree on the same scripts |
+| 3 | `parse-only: true` by default | No `on load:` side effect; diagnostics match |
+| 4 | Hover, completion, symbols, section entries | Feature by feature, each behind the snapshot |
 
-Stages 3–5 are separate commits. The legacy path stays until stage 4 is verified.
+Stages 2-4 are separate commits. The legacy path stays until stage 3 is verified.
 
 ## 11. Risks
 
 | Risk | Mitigation |
 |---|---|
 | `Classes.superClassInfos` race | Main-thread parsing initially; measure before moving off-thread |
-| The `on load:` fix breaks some diagnostic we didn't notice | The rig + golden diffs; the `parse-only` flag is the escape hatch |
+| The `on load:` fix breaks some diagnostic we didn't notice | Differential comparison against the pre-rewrite build; the `parse-only` flag is the escape hatch |
 | `SubCommandEntryData` is not usable standalone | Fall back to documenting the gap — **never** to `loadScripts` |
-| Local function registration still shadows something | Research in flight; fallback is a per-document namespace plus `unregisterFunction` |
+| Local function registration still shadows something | A synthetic per-document namespace, `local = true` only, and `unregisterFunction` in a `finally` — verified against Skript 2.17.1 source (§4.3) |
 | detekt's rule set fights the rewrite | `ReturnCount.excludeGuardClauses: true` (collapses 13 findings to ~3); ~20 findings total, all mechanical |
 
 ## 12. Out of scope
