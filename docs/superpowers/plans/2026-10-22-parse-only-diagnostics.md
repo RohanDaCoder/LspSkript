@@ -289,7 +289,10 @@ Expected: one error in `CodeActionProvider.kt` at the `diagnostic.message.lowerc
 
 - [ ] **Step 3: Fix the call site**
 
-The line reads `val message = diagnostic.message.lowercase(Locale.ENGLISH)`. Change it to take the left side of the `Either`:
+LSP4J 1.0.0 changed `Diagnostic.getMessage()` to return
+`Either<String, MarkupContent>`. The line reads
+`val message = diagnostic.message.lowercase(Locale.ENGLISH)` — change it to take
+the left side:
 
 ```kotlin
         val message = diagnostic.message.left.lowercase(Locale.ENGLISH)
@@ -297,9 +300,41 @@ The line reads `val message = diagnostic.message.lowercase(Locale.ENGLISH)`. Cha
 
 If the compiler rejects `.left`, use `diagnostic.message.getLeft()`.
 
-**If the accessor did not change at all** — LSP4J 1.0.0 may still return a plain
-`String` — then this step is a no-op: leave the call site as it was and say so
-in the report. Do not contort the code to match a change that is not there.
+**The write side breaks too, and this is the part that is easy to miss.**
+Kotlin pairs the property with the setter whose parameter type matches the
+getter's return type, so `diagnostic.message = "text"` **does not compile**
+against 1.0.0, even though Java still has a `setMessage(String)` overload:
+
+```
+e: Assignment type mismatch: actual type is 'String',
+   but 'Either<String!, MarkupContent!>!' was expected.
+```
+
+Call the method instead:
+
+```kotlin
+        diagnostic.setMessage(text)
+```
+
+**Verified against the real 1.0.0 jar** with `javap` and a compile probe:
+
+| Call | 1.0.0 |
+|---|---|
+| `diagnostic.message` (read) | returns `Either<String, MarkupContent>` — use `.left` |
+| `diagnostic.message = "x"` | **does not compile** — use `diagnostic.setMessage("x")` |
+| `diagnostic.setMessage("x")` | compiles — the Java overload is resolved when called as a method |
+| `diagnostic.message = Either.forLeft("x")` | compiles |
+| `Diagnostic(range, "x")` | compiles — the constructor still takes a `String` |
+| `diagnostic.setCode("x")` | compiles |
+| `diagnostic.code = "x"` | **does not compile** — `getCode()` returns `Either<String, Integer>` in *both* 0.23.1 and 1.0.0, and Kotlin pairs the property with the `Either` setter. Use `diagnostic.setCode("x")` |
+| `diagnostic.source = "x"`, `diagnostic.severity = ...` | compile — plain getter/setter types |
+
+`ServerCapabilities` gained `getInlineCompletionProvider()` and
+`getTextDocument()`. Both are additive; nothing breaks.
+
+**The only existing call site that breaks is
+`CodeActionProvider.kt:29`.** Everything else in the plugin either never
+touches `Diagnostic.message` or uses the constructor.
 
 - [ ] **Step 4: Build and test**
 
@@ -740,9 +775,18 @@ object ParseDiagnostics {
     private fun toDiagnostic(entry: DiagnosticInput, line: Int): Diagnostic {
         val diagnostic = Diagnostic()
         diagnostic.severity = entry.severity
-        diagnostic.message = entry.message
+        // setMessage, not `diagnostic.message = ...`. LSP4J 1.0.0 changed the
+        // getter to return Either<String, MarkupContent>, and Kotlin pairs the
+        // property with the Either-taking setter, so the assignment does not
+        // compile. The String overload still exists when the method is called
+        // directly. Verified against the 1.0.0 jar.
+        diagnostic.setMessage(entry.message)
         diagnostic.source = SOURCE
-        diagnostic.code = "q${entry.quality}"
+        // setCode, not `diagnostic.code = ...`. getCode() returns
+        // Either<String, Integer>, and Kotlin pairs the property with the
+        // Either-taking setter, so the assignment does not compile. The String
+        // overload still exists when the method is called directly.
+        diagnostic.setCode("q${entry.quality}")
         diagnostic.range = Range(Position(line, 0), Position(line, 0))
         return diagnostic
     }
