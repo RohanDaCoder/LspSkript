@@ -244,7 +244,7 @@ class DefinitionReferenceProviderTest {
     fun workspaceSymbolsFiltersByQuery() {
         val p = provider(
             uri to "function greet(msg: text):",
-            "file:///other.sk" to "function loot():\n\tgive 1 diamond"
+            "file:///other.sk" to "function loot():\n\tgive 1 diamond",
         )
 
         val symbols = p.workspaceSymbols("gre")

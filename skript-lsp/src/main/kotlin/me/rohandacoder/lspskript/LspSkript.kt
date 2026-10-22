@@ -10,12 +10,19 @@ import java.util.logging.Level
  */
 class LspSkript : JavaPlugin() {
 
+    /** Plugin-wide defaults. */
     companion object {
+        /** The default TCP port; overridden by config.yml's `port`. */
         const val DEFAULT_PORT = 30505
     }
 
     private var server: SkriptLanguageServer? = null
 
+    /**
+     * Boots the language server. The broad catch is deliberate: startup must
+     * never leave the plugin half-bound to Minecraft.
+     */
+    @Suppress("TooGenericExceptionCaught")
     override fun onEnable() {
         saveDefaultConfig()
         val port = config.getInt("port", DEFAULT_PORT)
@@ -34,6 +41,8 @@ class LspSkript : JavaPlugin() {
         }
     }
 
+    /** Shuts the language server down. Failures are logged, never rethrown. */
+    @Suppress("TooGenericExceptionCaught")
     override fun onDisable() {
         server?.let { s ->
             try {

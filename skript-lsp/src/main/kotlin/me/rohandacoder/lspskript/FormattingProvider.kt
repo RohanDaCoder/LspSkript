@@ -16,8 +16,10 @@ import java.nio.file.Files
  */
 class FormattingProvider {
 
+    /** Formats the whole document. */
     fun formatting(uri: String, text: String): List<TextEdit> = formatAll(text)
 
+    /** Formats the whole document; range formatting of an indentation-based language is equivalent. */
     fun rangeFormatting(uri: String, text: String, range: Range): List<TextEdit> {
         // For simplicity, format the whole document (range formatting of an
         // indentation-based language is equivalent to full formatting).
@@ -33,7 +35,7 @@ class FormattingProvider {
             val lineCount = text.split('\n').size
             val full = Range(Position(0, 0), Position(lineCount, 0))
             listOf(TextEdit(full, formatted))
-        } catch (e: IOException) {
+        } catch (ignored: IOException) {
             emptyList()
         } finally {
             temp.delete()

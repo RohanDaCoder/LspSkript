@@ -1,6 +1,13 @@
 package me.rohandacoder.lspskript
 
-import org.eclipse.lsp4j.*
+import org.eclipse.lsp4j.CodeAction
+import org.eclipse.lsp4j.CodeActionKind
+import org.eclipse.lsp4j.CodeActionParams
+import org.eclipse.lsp4j.Command
+import org.eclipse.lsp4j.Diagnostic
+import org.eclipse.lsp4j.Range
+import org.eclipse.lsp4j.TextEdit
+import org.eclipse.lsp4j.WorkspaceEdit
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import java.util.*
 
@@ -14,6 +21,7 @@ import java.util.*
  */
 class CodeActionProvider {
 
+    /** Returns the quick-fixes available for [params]' diagnostics on [text]. */
     fun codeAction(uri: String, text: String, params: CodeActionParams): List<Either<Command, CodeAction>> {
         val actions: MutableList<Either<Command, CodeAction>> = mutableListOf()
 
@@ -24,20 +32,24 @@ class CodeActionProvider {
                 actions.add(
                     Either.forRight(
                         quickFix(
-                            "Insert 'and'", uri, diagnostic,
-                            insertAtLineStart(text, diagnostic.range.start.line, "and ")
-                        )
-                    )
+                            "Insert 'and'",
+                            uri,
+                            diagnostic,
+                            insertAtLineStart(text, diagnostic.range.start.line, "and "),
+                        ),
+                    ),
                 )
             }
             if (message.contains("deprecated")) {
                 actions.add(
                     Either.forRight(
                         quickFix(
-                            "Suppress deprecated syntax warning", uri, diagnostic,
-                            insertAtLineStart(text, diagnostic.range.start.line, "#! deprecation\n")
-                        )
-                    )
+                            "Suppress deprecated syntax warning",
+                            uri,
+                            diagnostic,
+                            insertAtLineStart(text, diagnostic.range.start.line, "#! deprecation\n"),
+                        ),
+                    ),
                 )
             }
         }

@@ -31,11 +31,15 @@ class SkriptLanguageServer(private val port: Int, private val trace: Boolean) {
     private var serverSocket: AsynchronousServerSocketChannel? = null
     private var acceptThread: Thread? = null
 
+    /** Server-wide defaults and shared utilities. */
     companion object {
         private val LOGGER = Logger.getLogger(SkriptLanguageServer::class.java.name)
+
+        /** The default TCP port the server binds to when no port is configured. */
         const val DEFAULT_PORT = 30505
     }
 
+    /** Opens the listening socket and starts the accept loop. */
     @Throws(Exception::class)
     fun start() {
         if (running.compareAndSet(false, true)) {
@@ -49,6 +53,11 @@ class SkriptLanguageServer(private val port: Int, private val trace: Boolean) {
         }
     }
 
+    /**
+     * Accepts connections until the server stops. The broad catch keeps a
+     * single failed connection from killing the accept loop itself.
+     */
+    @Suppress("TooGenericExceptionCaught")
     private fun acceptLoop() {
         while (running.get()) {
             try {
@@ -74,6 +83,11 @@ class SkriptLanguageServer(private val port: Int, private val trace: Boolean) {
         }
     }
 
+    /**
+     * Serves a single connected client. The broad catch is deliberate: a
+     * failing client must never crash the server-running thread.
+     */
+    @Suppress("TooGenericExceptionCaught")
     private fun handleClient(socket: AsynchronousSocketChannel) {
         try {
             val textService = SkriptTextDocumentService()
@@ -110,17 +124,21 @@ class SkriptLanguageServer(private val port: Int, private val trace: Boolean) {
      */
     private fun traceWriter(): PrintWriter? {
         if (!trace) return null
-        return PrintWriter(object : Writer() {
-            override fun write(cbuf: CharArray, off: Int, len: Int) {
-                LOGGER.log(Level.FINE, String(cbuf, off, len))
-            }
+        return PrintWriter(
+            object : Writer() {
+                override fun write(cbuf: CharArray, off: Int, len: Int) {
+                    LOGGER.log(Level.FINE, String(cbuf, off, len))
+                }
 
-            override fun flush() {}
+                override fun flush() {}
 
-            override fun close() {}
-        }, true)
+                override fun close() {}
+            },
+            true,
+        )
     }
 
+    /** Disconnects every client and closes the listening socket. */
     @Throws(Exception::class)
     fun stop() {
         if (running.compareAndSet(true, false)) {

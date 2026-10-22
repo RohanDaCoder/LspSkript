@@ -13,17 +13,19 @@ import java.util.function.Supplier
 object LspUtils {
 
     /** A whole-line range on the given 0-based line. */
-    fun lineRange(line: Int): Range =
-        Range(Position(line, 0), Position(line, Int.MAX_VALUE))
+    fun lineRange(line: Int): Range = Range(Position(line, 0), Position(line, Int.MAX_VALUE))
 
     /** A range covering [startLine, endLine] inclusive, full-width. */
-    fun lineRange(startLine: Int, endLine: Int): Range =
-        Range(Position(startLine, 0), Position(endLine, Int.MAX_VALUE))
+    fun lineRange(startLine: Int, endLine: Int): Range = Range(Position(startLine, 0), Position(endLine, Int.MAX_VALUE))
 
     /**
      * Runs the given supplier on the Bukkit main thread and returns its result.
      * Skript's parser and all syntax `init()` calls must execute there.
+     *
+     * The broad catch is deliberate: any scheduler or parse failure is
+     * wrapped into a descriptive [RuntimeException] with the original as cause.
      */
+    @Suppress("TooGenericExceptionCaught")
     fun <T> onMainThread(supplier: Supplier<T>): T {
         if (Bukkit.isPrimaryThread()) {
             return supplier.get()

@@ -1,0 +1,60 @@
+# detekt 2.0 configuration — slim config used standalone (buildUponDefaultConfig = false),
+# so ONLY the rules listed below with active: true run. Property values not set here fall
+# back to each rule's built-in defaults.
+#
+# Migration note from detekt 1.x: TooManyFunctions.rawThreshold-like properties were
+# renamed in 2.0 (thresholdInFiles -> allowedFunctionsPerFile, etc.) and LongMethod's
+# threshold -> allowedLines.
+
+config:
+  validation: true
+
+complexity:
+  LongMethod:
+    active: true
+    allowedLines: 60
+  TooManyFunctions:
+    active: true
+    # 25 (was 11): CompletionProvider, DefinitionReferenceProvider and
+    # SkriptTextDocumentService legitimately exceed the default number of functions;
+    # they are the classes the language-server rewrite is going to split.
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+    allowedFunctionsPerFile: 25
+    allowedFunctionsPerClass: 25
+    allowedFunctionsPerObject: 25
+
+style:
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+  ReturnCount:
+    active: true
+    max: 2
+    excludeGuardClauses: true
+  MagicNumber:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/*.kts']
+    ignoreNumbers: ['-1', '0', '1', '2']
+  WildcardImport:
+    active: true
+    excludeImports: ['java.util.*']
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+  SwallowedException:
+    active: true
+
+comments:
+  UndocumentedPublicClass:
+    active: true
+    # Path excludes restored from detekt 2.0's own default config for these rules;
+    # a slim config used with buildUponDefaultConfig = false loses them otherwise.
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+  UndocumentedPublicFunction:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+  UndocumentedPublicProperty:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']

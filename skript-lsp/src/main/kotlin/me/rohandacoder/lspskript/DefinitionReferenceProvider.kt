@@ -52,6 +52,7 @@ class DefinitionReferenceProvider {
         val commands: Set<String>,
     )
 
+    /** Stores [text] under [uri] and rebuilds the index snapshot. */
     fun index(uri: String, text: String) {
         documents[uri] = text
         rebuild()
@@ -101,6 +102,7 @@ class DefinitionReferenceProvider {
         snapshot = Index(definitions, variables, functions, commands)
     }
 
+    /** Locations of the function/command or variable definition at [position]. */
     fun definition(uri: String, text: String, position: Position): List<Location> {
         val index = snapshot
         val varAt = variableMatchAtCursor(text, position)
@@ -113,6 +115,7 @@ class DefinitionReferenceProvider {
         return if (loc != null) listOf(loc) else emptyList()
     }
 
+    /** Every usage of the symbol at [position], optionally including its declaration. */
     fun references(uri: String, text: String, position: Position, includeDeclaration: Boolean): List<Location> {
         val index = snapshot
         val varAt = variableMatchAtCursor(text, position)
@@ -125,6 +128,7 @@ class DefinitionReferenceProvider {
         return findWordUsages(word, def, includeDeclaration)
     }
 
+    /** Symbols matching [query], for the workspace/symbol request. */
     @Suppress("DEPRECATION")
     fun workspaceSymbols(query: String?): List<SymbolInformation> {
         val result: MutableList<SymbolInformation> = mutableListOf()
@@ -139,7 +143,11 @@ class DefinitionReferenceProvider {
      * Returns the range the client should pre-select for rename, or null when
      * the symbol at [position] cannot be renamed.
      */
-    fun prepareRename(uri: String, text: String, position: Position): Either3<Range, PrepareRenameResult, PrepareRenameDefaultBehavior>? {
+    fun prepareRename(
+        uri: String,
+        text: String,
+        position: Position,
+    ): Either3<Range, PrepareRenameResult, PrepareRenameDefaultBehavior>? {
         val index = snapshot
         val varAt = variableMatchAtCursor(text, position)
         if (varAt != null) {
@@ -151,6 +159,7 @@ class DefinitionReferenceProvider {
         return Either3.forFirst(wordRangeAt(text, position))
     }
 
+    /** Applies renaming the symbol at [position] to [newName] across all references. */
     fun rename(uri: String, text: String, position: Position, newName: String): WorkspaceEdit {
         val index = snapshot
         val varAt = variableMatchAtCursor(text, position)
@@ -191,7 +200,7 @@ class DefinitionReferenceProvider {
             val start = loc.range.start.character + 1
             val editRange = Range(
                 Position(loc.range.start.line, start),
-                Position(loc.range.start.line, start + baseLen)
+                Position(loc.range.start.line, start + baseLen),
             )
             changes.computeIfAbsent(loc.uri) { mutableListOf() }.add(TextEdit(editRange, newBase))
         }

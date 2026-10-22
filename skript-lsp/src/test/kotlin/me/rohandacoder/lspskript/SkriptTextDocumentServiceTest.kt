@@ -16,7 +16,7 @@ class SkriptTextDocumentServiceTest {
         svc.applyRangeEdit(
             "a\nb\nc",
             Range(Position(startLine, startChar), Position(endLine, endChar)),
-            replacement
+            replacement,
         )
 
     @Test
@@ -26,11 +26,14 @@ class SkriptTextDocumentServiceTest {
 
     @Test
     fun replacesSpanAcrossLines() {
-        assertEquals("xW\nVz", svc.applyRangeEdit(
-            "x\ny\nz",
-            Range(Position(0, 1), Position(2, 0)),
-            "W\nV"
-        ))
+        assertEquals(
+            "xW\nVz",
+            svc.applyRangeEdit(
+                "x\ny\nz",
+                Range(Position(0, 1), Position(2, 0)),
+                "W\nV",
+            ),
+        )
     }
 
     @Test
@@ -69,7 +72,7 @@ class SkriptTextDocumentServiceTest {
     fun editsTheEmptyLineAfterATrailingNewline() {
         assertEquals(
             "a\nb\nc\nx",
-            svc.applyRangeEdit("a\nb\nc\n", Range(Position(3, 0), Position(3, 0)), "x")
+            svc.applyRangeEdit("a\nb\nc\n", Range(Position(3, 0), Position(3, 0)), "x"),
         )
     }
 
@@ -78,7 +81,7 @@ class SkriptTextDocumentServiceTest {
         // "a\n\n" is line0="a", line1="", line2="" (the cursor sits on line2).
         assertEquals(
             "a\n\ny",
-            svc.applyRangeEdit("a\n\n", Range(Position(2, 0), Position(2, 0)), "y")
+            svc.applyRangeEdit("a\n\n", Range(Position(2, 0), Position(2, 0)), "y"),
         )
     }
 
@@ -86,7 +89,7 @@ class SkriptTextDocumentServiceTest {
     fun appendsToTheLastContentLineOfATrailingNewlineFile() {
         assertEquals(
             "a\nbc\n",
-            svc.applyRangeEdit("a\nb\n", Range(Position(1, 1), Position(1, 1)), "c")
+            svc.applyRangeEdit("a\nb\n", Range(Position(1, 1), Position(1, 1)), "c"),
         )
     }
 
@@ -95,7 +98,7 @@ class SkriptTextDocumentServiceTest {
         // Range covering the newline itself: from end of "a" to start of line 1.
         assertEquals(
             "a",
-            svc.applyRangeEdit("a\n", Range(Position(0, 1), Position(1, 0)), "")
+            svc.applyRangeEdit("a\n", Range(Position(0, 1), Position(1, 0)), ""),
         )
     }
 

@@ -20,6 +20,7 @@ class SignatureHelpProvider {
     private val typeStripPattern: Regex = Regex("[-@0-9]")
     private val whitespacePattern: Regex = Regex("\\s+")
 
+    /** Signature help for the syntax being typed at [position], or null when none matches. */
     fun signatureHelp(uri: String, text: String, position: Position): SignatureHelp? {
         val line = CompletionProvider.lineAt(text, position.line)
         val before = line.substring(0, Math.min(position.character, line.length))
@@ -32,12 +33,10 @@ class SignatureHelpProvider {
         addAll(reg.syntaxes(SyntaxRegistry.CONDITION), before, candidates)
         addAll(reg.syntaxes(SyntaxRegistry.EXPRESSION), before, candidates)
 
-        if (candidates.isEmpty()) return null
-        val first = candidates.first()
-        val firstPattern = first.patterns().firstOrNull() ?: return null
+        // Use the first candidate's first pattern.
+        val firstPattern = candidates.firstOrNull()?.patterns()?.firstOrNull() ?: return null
 
         val info = SignatureInformation()
-        // Use the first candidate's first pattern.
         val pattern = CompletionProvider.cleanPattern(firstPattern)
         info.setLabel(pattern)
 

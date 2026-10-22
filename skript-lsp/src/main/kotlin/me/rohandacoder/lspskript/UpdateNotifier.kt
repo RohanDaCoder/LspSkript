@@ -62,9 +62,9 @@ class UpdateNotifier(
     }
 
     private fun parseVersion(v: String): Triple<Int, Int, Int>? {
-        val m = versionPattern.matcher(v)
-        if (!m.find()) return null
-        return Triple(m.group(1).toInt(), m.group(2).toInt(), m.group(3).toInt())
+        val match = versionPattern.find(v) ?: return null
+        val (major, minor, patch) = match.destructured
+        return Triple(major.toInt(), minor.toInt(), patch.toInt())
     }
 
     private fun compareVersions(a: Triple<Int, Int, Int>, b: Triple<Int, Int, Int>): Int =
@@ -72,6 +72,6 @@ class UpdateNotifier(
 
     private companion object {
         val tagNamePattern: Pattern = Pattern.compile("\"tag_name\"\\s*:\\s*\"([^\"]+)\"")
-        val versionPattern: Pattern = Pattern.compile("""(\d+)\.(\d+)\.(\d+)""")
+        val versionPattern: Regex = Regex("""(\d+)\.(\d+)\.(\d+)""")
     }
 }

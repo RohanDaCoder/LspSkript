@@ -1,11 +1,44 @@
 package me.rohandacoder.lspskript
 
-import org.eclipse.lsp4j.*
+import org.eclipse.lsp4j.CodeAction
+import org.eclipse.lsp4j.CodeActionParams
+import org.eclipse.lsp4j.Command
+import org.eclipse.lsp4j.CompletionItem
+import org.eclipse.lsp4j.CompletionList
+import org.eclipse.lsp4j.CompletionParams
+import org.eclipse.lsp4j.DefinitionParams
+import org.eclipse.lsp4j.Diagnostic
+import org.eclipse.lsp4j.DidChangeTextDocumentParams
+import org.eclipse.lsp4j.DidChangeWatchedFilesParams
+import org.eclipse.lsp4j.DidCloseTextDocumentParams
+import org.eclipse.lsp4j.DidOpenTextDocumentParams
+import org.eclipse.lsp4j.DidSaveTextDocumentParams
+import org.eclipse.lsp4j.DocumentFormattingParams
+import org.eclipse.lsp4j.DocumentRangeFormattingParams
+import org.eclipse.lsp4j.DocumentSymbol
+import org.eclipse.lsp4j.DocumentSymbolParams
+import org.eclipse.lsp4j.Hover
+import org.eclipse.lsp4j.HoverParams
+import org.eclipse.lsp4j.Location
+import org.eclipse.lsp4j.LocationLink
+import org.eclipse.lsp4j.PrepareRenameDefaultBehavior
+import org.eclipse.lsp4j.PrepareRenameParams
+import org.eclipse.lsp4j.PrepareRenameResult
+import org.eclipse.lsp4j.PublishDiagnosticsParams
+import org.eclipse.lsp4j.Range
+import org.eclipse.lsp4j.ReferenceParams
+import org.eclipse.lsp4j.RenameParams
+import org.eclipse.lsp4j.SignatureHelp
+import org.eclipse.lsp4j.SignatureHelpParams
+import org.eclipse.lsp4j.SymbolInformation
+import org.eclipse.lsp4j.TextDocumentItem
+import org.eclipse.lsp4j.TextEdit
+import org.eclipse.lsp4j.WorkspaceEdit
+import org.eclipse.lsp4j.jsonrpc.CompletableFutures
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.jsonrpc.messages.Either3
 import org.eclipse.lsp4j.jsonrpc.services.JsonNotification
 import org.eclipse.lsp4j.jsonrpc.services.JsonRequest
-import org.eclipse.lsp4j.jsonrpc.CompletableFutures
 import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.TextDocumentService
 import java.util.concurrent.CompletableFuture
@@ -31,6 +64,7 @@ class SkriptTextDocumentService : TextDocumentService {
     private val formattingProvider: FormattingProvider by lazy { FormattingProvider() }
     private val codeActionProvider: CodeActionProvider by lazy { CodeActionProvider() }
 
+    /** Connects the LSP client used to publish diagnostics. */
     fun connect(client: LanguageClient) {
         this.client = client
     }
@@ -77,6 +111,7 @@ class SkriptTextDocumentService : TextDocumentService {
         client?.publishDiagnostics(PublishDiagnosticsParams(uri, emptyList()))
     }
 
+    /** Called when watched files change on disk; invalidates the provider cache. */
     fun onWatchedFilesChanged(params: DidChangeWatchedFilesParams) {
         if (params.changes == null) return
         for (event in params.changes) {
@@ -132,7 +167,9 @@ class SkriptTextDocumentService : TextDocumentService {
             val text = documents[uri]
             if (text == null) return@computeAsync Either.forLeft(emptyList<CompletionItem>())
             val items = completionProvider.complete(
-                uri, text, params.position,
+                uri,
+                text,
+                params.position,
                 definitionReferenceProvider.variableNames(),
                 definitionReferenceProvider.functionNames(),
                 definitionReferenceProvider.commandNames(),
@@ -187,7 +224,9 @@ class SkriptTextDocumentService : TextDocumentService {
     }
 
     @JsonRequest("textDocument/documentSymbol")
-    override fun documentSymbol(params: DocumentSymbolParams): CompletableFuture<List<Either<SymbolInformation, DocumentSymbol>>> {
+    override fun documentSymbol(
+        params: DocumentSymbolParams,
+    ): CompletableFuture<List<Either<SymbolInformation, DocumentSymbol>>> {
         return CompletableFutures.computeAsync { cancelToken ->
             cancelToken.checkCanceled()
             val uri = params.textDocument.uri
@@ -232,7 +271,7 @@ class SkriptTextDocumentService : TextDocumentService {
 
     @JsonRequest("textDocument/prepareRename")
     override fun prepareRename(
-        params: PrepareRenameParams
+        params: PrepareRenameParams,
     ): CompletableFuture<Either3<Range, PrepareRenameResult, PrepareRenameDefaultBehavior>> {
         return CompletableFutures.computeAsync { cancelToken ->
             cancelToken.checkCanceled()
@@ -253,7 +292,6 @@ class SkriptTextDocumentService : TextDocumentService {
         }
     }
 
-    fun workspaceSymbols(query: String?): List<SymbolInformation> {
-        return definitionReferenceProvider.workspaceSymbols(query)
-    }
+    /** Workspace symbols matching [query], delegated to the index provider. */
+    fun workspaceSymbols(query: String?): List<SymbolInformation> = definitionReferenceProvider.workspaceSymbols(query)
 }

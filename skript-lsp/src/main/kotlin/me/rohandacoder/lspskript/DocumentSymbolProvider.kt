@@ -4,10 +4,10 @@ import ch.njol.skript.config.Config
 import ch.njol.skript.config.Node
 import ch.njol.skript.config.SectionNode
 import org.eclipse.lsp4j.DocumentSymbol
-import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.SymbolKind
+import org.eclipse.lsp4j.jsonrpc.messages.Either
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 
@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets
  */
 class DocumentSymbolProvider {
 
+    /** Builds the document-symbol tree for the parsed [text]. */
     fun documentSymbols(uri: String, text: String): List<Either<org.eclipse.lsp4j.SymbolInformation, DocumentSymbol>> {
         val config = parseConfig(text) ?: return emptyList()
         val symbols: MutableList<DocumentSymbol> = mutableListOf()
@@ -57,14 +58,18 @@ class DocumentSymbolProvider {
         return SymbolKind.Namespace
     }
 
+    /** Parsing helpers shared with other providers. */
     companion object {
+        /**
+         * Parses [text] with Skript's [Config]; returns null when the document
+         * cannot be parsed. Letting the parse fail into a null lets callers
+         * degrade gracefully instead of crashing a feature request.
+         */
         @JvmStatic
-        fun parseConfig(text: String): Config? {
-            return try {
-                Config(ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)), "lsp.sk", null, true, true, ":")
-            } catch (e: Exception) {
-                null
-            }
+        fun parseConfig(text: String): Config? = try {
+            Config(ByteArrayInputStream(text.toByteArray(StandardCharsets.UTF_8)), "lsp.sk", null, true, true, ":")
+        } catch (ignored: Exception) {
+            null
         }
     }
 }

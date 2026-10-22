@@ -6,11 +6,45 @@ plugins {
     kotlin("jvm") version "2.3.0"
     id("com.gradleup.shadow") version "8.3.5"
     id("io.github.rohandacoder.gradle-release") version "0.1.0"
+    id("dev.detekt") version "2.0.0-alpha.6"
 }
 
 group = "me.rohandacoder"
 version = project.property("skriptLspVersion") as String
 description = "Language Server Protocol backend for the Skript language, reusing the real Skript parser."
+
+detekt {
+    toolVersion = "2.0.0-alpha.6"
+    buildUponDefaultConfig = false
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
+}
+
+// Static analysis per the design spec: ktlint runs as the standalone CLI
+// (its Gradle plugin has not kept pace with Gradle 9), so resolve the CLI as a
+// normal configuration and run it with JavaExec below.
+val ktlint by configurations.creating
+
+dependencies {
+    ktlint("com.pinterest.ktlint:ktlint-cli:1.8.0")
+}
+
+val ktlintCheck by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Runs ktlint over the module's Kotlin sources."
+    classpath = ktlint
+    mainClass.set("com.pinterest.ktlint.Main")
+    args("check", "src/main/kotlin", "src/test/kotlin")
+}
+
+val ktlintFormat by tasks.registering(JavaExec::class) {
+    group = "formatting"
+    description = "Applies ktlint's autofixes to the module's Kotlin sources."
+    classpath = ktlint
+    mainClass.set("com.pinterest.ktlint.Main")
+    args("--format", "src/main/kotlin", "src/test/kotlin")
+}
+
+tasks.named("check") { dependsOn(ktlintCheck) }
 
 java {
     toolchain {

@@ -2,14 +2,14 @@ package me.rohandacoder.lspskript
 
 import org.eclipse.lsp4j.CompletionItem
 import org.eclipse.lsp4j.CompletionItemKind
-import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.InsertTextFormat
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.TextEdit
+import org.eclipse.lsp4j.jsonrpc.messages.Either
+import org.skriptlang.skript.bukkit.registration.BukkitSyntaxInfos
 import org.skriptlang.skript.registration.SyntaxInfo
 import org.skriptlang.skript.registration.SyntaxRegistry
-import org.skriptlang.skript.bukkit.registration.BukkitSyntaxInfos
 import java.util.*
 import java.util.regex.Matcher
 import java.util.regex.Pattern
@@ -21,6 +21,10 @@ import java.util.regex.Pattern
  */
 class CompletionProvider {
 
+    /**
+     * Builds completion items for the cursor position; the detected context
+     * decides which syntax categories are offered.
+     */
     fun complete(
         uri: String,
         text: String,
@@ -35,7 +39,7 @@ class CompletionProvider {
         // trailing chunk before the cursor, so its start is simply here.
         val editRange = Range(
             Position(position.line, position.character - prefix.length),
-            Position(position.line, position.character)
+            Position(position.line, position.character),
         )
 
         val context = detectContext(text, position)
@@ -43,12 +47,14 @@ class CompletionProvider {
         val items: MutableList<CompletionItem> = mutableListOf()
         when (context) {
             Context.TOP_LEVEL -> addStructures(items, prefix, editRange)
+
             Context.IN_SECTION -> {
                 addEffectsConditions(items, prefix, editRange)
                 addStructures(items, prefix, editRange) // allow nested e.g. command/function
                 addUserFunctions(items, prefix, editRange, functionNames)
                 addCommands(items, prefix, editRange, commandNames)
             }
+
             Context.IN_EXPRESSION -> {
                 addExpressions(items, prefix, editRange)
                 if (hasBraceBefore(line, position.character)) {
@@ -164,12 +170,22 @@ class CompletionProvider {
         }
     }
 
-    private fun addFrom(infos: Collection<SyntaxInfo<*>>, items: MutableList<CompletionItem>, prefix: String, range: Range, kind: CompletionItemKind) {
+    private fun addFrom(
+        infos: Collection<SyntaxInfo<*>>,
+        items: MutableList<CompletionItem>,
+        prefix: String,
+        range: Range,
+        kind: CompletionItemKind,
+    ) {
         for (info in infos) {
             for (pattern in info.patterns()) {
                 val cleaned = cleanPattern(pattern)
                 if (cleaned.isEmpty()) continue
-                if (prefix.isNotEmpty() && !cleaned.lowercase(Locale.ENGLISH).startsWith(prefix.lowercase(Locale.ENGLISH))) continue
+                if (prefix.isNotEmpty() &&
+                    !cleaned.lowercase(Locale.ENGLISH).startsWith(prefix.lowercase(Locale.ENGLISH))
+                ) {
+                    continue
+                }
                 items.add(buildItem(info, cleaned, kind, range))
             }
         }
@@ -178,7 +194,12 @@ class CompletionProvider {
         items.removeIf { !seen.add(it.label) }
     }
 
-    private fun buildItem(info: SyntaxInfo<*>, pattern: String, kind: CompletionItemKind, range: Range): CompletionItem {
+    private fun buildItem(
+        info: SyntaxInfo<*>,
+        pattern: String,
+        kind: CompletionItemKind,
+        range: Range,
+    ): CompletionItem {
         val item = CompletionItem()
         item.label = pattern
         item.kind = kind
@@ -202,10 +223,15 @@ class CompletionProvider {
         return item
     }
 
+    /**
+     * Shared text/pattern helpers used by several feature providers.
+     */
     companion object {
-        // The trailing identifier-like chunk before the cursor: letters, digits,
-        // `_`, `{`, `}`, `%`, `.` and `-`. Deliberately excludes whitespace so
-        // completing after a space yields the word being typed, not the phrase.
+        /**
+         * The trailing identifier-like chunk before the cursor: letters, digits,
+         * `_`, `{`, `}`, `%`, `.` and `-`. Deliberately excludes whitespace so
+         * completing after a space yields the word being typed, not the phrase.
+         */
         val trailingWord: Pattern = Pattern.compile("([A-Za-z0-9_{}%.-]*)\\z")
 
         /** Parse-tag marker like `[a:` (the `[` is kept for display). */
@@ -217,12 +243,14 @@ class CompletionProvider {
         /** Type-shaping characters stripped when naming snippet tabstops. */
         private val typeStripPattern: Regex = Regex("[-@0-9]")
 
+        /** Strips Skript parse tags like `[a:` from a pattern; `%types%` stay for display. */
         @JvmStatic
         fun cleanPattern(pattern: String): String {
             // Remove parse tags like [a:], markers, and %types% are kept for display.
             return pattern.replace(tagPattern, "[").trim()
         }
 
+        /** Converts the `%type%` slots of [pattern] into number-ordered snippet tabstops. */
         @JvmStatic
         fun toSnippet(pattern: String): String {
             val m: Matcher = typeSlotPattern.matcher(pattern)
@@ -239,64 +267,73 @@ class CompletionProvider {
             return sb.toString()
         }
 
-    private fun addVariables(items: MutableList<CompletionItem>, prefix: String, range: Range, knownVariables: Collection<String>) {
-        val filter = prefix.removePrefix("{").lowercase(Locale.ENGLISH)
-        for (name in knownVariables) {
-            if (name.lowercase(Locale.ENGLISH).startsWith(filter)) {
+        private fun addVariables(
+            items: MutableList<CompletionItem>,
+            prefix: String,
+            range: Range,
+            knownVariables: Collection<String>,
+        ) {
+            val filter = prefix.removePrefix("{").lowercase(Locale.ENGLISH)
+            for (name in knownVariables) {
+                if (name.lowercase(Locale.ENGLISH).startsWith(filter)) {
+                    val item = CompletionItem()
+                    item.label = "{$name}"
+                    item.kind = CompletionItemKind.Variable
+                    item.insertText = "{$name}"
+                    // Replaces the `{..` typed so far, including the brace.
+                    item.textEdit = Either.forLeft(TextEdit(range, "{$name}"))
+                    items.add(item)
+                }
+            }
+            if (knownVariables.none { it.lowercase(Locale.ENGLISH).startsWith(filter) }) {
                 val item = CompletionItem()
-                item.label = "{$name}"
+                item.label = "{variable}"
                 item.kind = CompletionItemKind.Variable
-                item.insertText = "{$name}"
-                // Replaces the `{..` typed so far, including the brace.
-                item.textEdit = Either.forLeft(TextEdit(range, "{$name}"))
+                item.insertText = "{variable}"
+                item.textEdit = Either.forLeft(TextEdit(range, "{variable}"))
+                item.setDocumentation("A Skript variable. Use {name::%expr%} for lists.")
                 items.add(item)
             }
         }
-        if (knownVariables.none { it.lowercase(Locale.ENGLISH).startsWith(filter) }) {
-            val item = CompletionItem()
-            item.label = "{variable}"
-            item.kind = CompletionItemKind.Variable
-            item.insertText = "{variable}"
-            item.textEdit = Either.forLeft(TextEdit(range, "{variable}"))
-            item.setDocumentation("A Skript variable. Use {name::%expr%} for lists.")
-            items.add(item)
+
+        private fun hasBraceBefore(line: String, character: Int): Boolean =
+            line.substring(0, Math.min(character, line.length)).contains("{")
+
+        // ------------------------------------------------------------------
+        // Text helpers
+        // ------------------------------------------------------------------
+
+        /** The text of [line] in [text], or an empty string when the line does not exist. */
+        @JvmStatic
+        fun lineAt(text: String, line: Int): String {
+            val lines = text.split('\n')
+            return if (line >= 0 && line < lines.size) lines[line] else ""
         }
-    }
 
-    private fun hasBraceBefore(line: String, character: Int): Boolean =
-        line.substring(0, Math.min(character, line.length)).contains("{")
+        /** The number of leading whitespace characters in [line]. */
+        @JvmStatic
+        fun indentOf(line: String): Int {
+            var i = 0
+            while (i < line.length && (line[i] == '\t' || line[i] == ' ')) i++
+            return i
+        }
 
-    // ------------------------------------------------------------------
-    // Text helpers
-    // ------------------------------------------------------------------
+        /** The trailing identifier-like chunk before [character] on [line]. */
+        @JvmStatic
+        fun currentWord(line: String, character: Int): String {
+            val before = line.substring(0, Math.min(character, line.length))
+            val m: Matcher = trailingWord.matcher(before)
+            return if (m.find()) m.group(1).trim() else ""
+        }
 
-    @JvmStatic
-    fun lineAt(text: String, line: Int): String {
-        val lines = text.split('\n')
-        return if (line >= 0 && line < lines.size) lines[line] else ""
-    }
-
-    @JvmStatic
-    fun indentOf(line: String): Int {
-        var i = 0
-        while (i < line.length && (line[i] == '\t' || line[i] == ' ')) i++
-        return i
-    }
-
-    @JvmStatic
-    fun currentWord(line: String, character: Int): String {
-        val before = line.substring(0, Math.min(character, line.length))
-        val m: Matcher = trailingWord.matcher(before)
-        return if (m.find()) m.group(1).trim() else ""
-    }
-
-    @JvmStatic
-    fun wordRange(line: String, character: Int, lineIndex: Int = 0): Range {
-        var start = character
-        while (start > 0 && Character.isLetterOrDigit(line[start - 1])) start--
-        var end = character
-        while (end < line.length && Character.isLetterOrDigit(line[end])) end++
-        return Range(Position(lineIndex, start), Position(lineIndex, end))
-    }
+        /** The range of the word around [character]; [lineIndex] selects the range's line. */
+        @JvmStatic
+        fun wordRange(line: String, character: Int, lineIndex: Int = 0): Range {
+            var start = character
+            while (start > 0 && Character.isLetterOrDigit(line[start - 1])) start--
+            var end = character
+            while (end < line.length && Character.isLetterOrDigit(line[end])) end++
+            return Range(Position(lineIndex, start), Position(lineIndex, end))
+        }
     }
 }

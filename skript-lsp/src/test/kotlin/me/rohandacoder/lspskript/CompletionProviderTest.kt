@@ -20,7 +20,7 @@ class CompletionProviderTest {
     fun toSnippetBuildsTabstops() {
         assertEquals(
             "set \${1:expr} to \${2:objects}",
-            CompletionProvider.toSnippet("set %expr% to %objects%")
+            CompletionProvider.toSnippet("set %expr% to %objects%"),
         )
     }
 

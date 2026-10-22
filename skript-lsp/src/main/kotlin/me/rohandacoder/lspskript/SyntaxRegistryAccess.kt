@@ -9,7 +9,6 @@ import org.skriptlang.skript.registration.SyntaxRegistry
  */
 object SyntaxRegistryAccess {
 
-    fun registry(): SyntaxRegistry {
-        return Skript.instance().syntaxRegistry()
-    }
+    /** Skript's live syntax registry (all feature providers read from this). */
+    fun registry(): SyntaxRegistry = Skript.instance().syntaxRegistry()
 }

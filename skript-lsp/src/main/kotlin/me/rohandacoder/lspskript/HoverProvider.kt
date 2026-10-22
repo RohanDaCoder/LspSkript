@@ -16,6 +16,7 @@ import java.util.*
  */
 class HoverProvider {
 
+    /** Returns hover information for the word at [position], or null when unknown. */
     fun hover(uri: String, text: String, position: Position): Hover? {
         val word = wordAt(text, position)
         if (word.isEmpty()) return null
@@ -43,7 +44,7 @@ class HoverProvider {
         hover.range = CompletionProvider.wordRange(
             CompletionProvider.lineAt(text, position.line),
             position.character,
-            position.line
+            position.line,
         )
         return hover
     }

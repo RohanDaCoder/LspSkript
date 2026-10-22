@@ -13,7 +13,8 @@ class UpdateNotifierTest {
 
     @Test
     fun parseTagNameExtractsTagFromApiBody() {
-        val body = """{"url":"https://api.github.com/repos/RohanDaCoder/LspSkript/releases/3","tag_name":"v0.1.2","name":"v0.1.2","draft":false}"""
+        val body = """{"url":"https://api.github.com/repos/RohanDaCoder/LspSkript/releases/3",""" +
+            """"tag_name":"v0.1.2","name":"v0.1.2","draft":false}"""
         assertEquals("v0.1.2", notifier.parseTagName(body))
     }
 

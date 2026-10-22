@@ -2,9 +2,9 @@ package me.rohandacoder.lspskript
 
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
-import org.eclipse.lsp4j.services.LanguageServer
 import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.LanguageClientAware
+import org.eclipse.lsp4j.services.LanguageServer
 import org.eclipse.lsp4j.services.TextDocumentService
 import org.eclipse.lsp4j.services.WorkspaceService
 import java.util.concurrent.CompletableFuture
@@ -16,16 +16,14 @@ import java.util.concurrent.CompletableFuture
 class CompositeLanguageServer(
     private val textDocumentService: TextDocumentService,
     private val workspaceService: WorkspaceService,
-    private val serverService: LanguageServer
-) : LanguageServer, LanguageClientAware {
+    private val serverService: LanguageServer,
+) : LanguageServer,
+    LanguageClientAware {
 
-    override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> {
-        return serverService.initialize(params)
-    }
+    override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> =
+        serverService.initialize(params)
 
-    override fun shutdown(): CompletableFuture<Any> {
-        return serverService.shutdown()
-    }
+    override fun shutdown(): CompletableFuture<Any> = serverService.shutdown()
 
     override fun exit() {
         serverService.exit()

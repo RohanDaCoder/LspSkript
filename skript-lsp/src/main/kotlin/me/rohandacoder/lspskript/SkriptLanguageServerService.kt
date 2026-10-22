@@ -1,33 +1,33 @@
 package me.rohandacoder.lspskript
 
-import org.eclipse.lsp4j.services.LanguageClient
-import org.eclipse.lsp4j.services.LanguageServer
-import org.eclipse.lsp4j.services.LanguageClientAware
-import org.eclipse.lsp4j.services.TextDocumentService
-import org.eclipse.lsp4j.services.WorkspaceService
-import org.eclipse.lsp4j.jsonrpc.services.JsonNotification
-import org.eclipse.lsp4j.jsonrpc.services.JsonRequest
+import org.eclipse.lsp4j.CodeActionOptions
+import org.eclipse.lsp4j.CompletionOptions
+import org.eclipse.lsp4j.DefinitionOptions
+import org.eclipse.lsp4j.DocumentSymbolOptions
+import org.eclipse.lsp4j.HoverOptions
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.InitializedParams
-import org.eclipse.lsp4j.ServerCapabilities
-import org.eclipse.lsp4j.TextDocumentSyncKind
-import org.eclipse.lsp4j.CompletionOptions
-import org.eclipse.lsp4j.SignatureHelpOptions
-import org.eclipse.lsp4j.HoverOptions
-import org.eclipse.lsp4j.DefinitionOptions
 import org.eclipse.lsp4j.ReferenceOptions
-import org.eclipse.lsp4j.DocumentSymbolOptions
-import org.eclipse.lsp4j.CodeActionOptions
 import org.eclipse.lsp4j.RenameOptions
+import org.eclipse.lsp4j.ServerCapabilities
+import org.eclipse.lsp4j.SignatureHelpOptions
+import org.eclipse.lsp4j.TextDocumentSyncKind
+import org.eclipse.lsp4j.jsonrpc.services.JsonNotification
+import org.eclipse.lsp4j.jsonrpc.services.JsonRequest
+import org.eclipse.lsp4j.services.LanguageClient
+import org.eclipse.lsp4j.services.LanguageClientAware
+import org.eclipse.lsp4j.services.LanguageServer
+import org.eclipse.lsp4j.services.TextDocumentService
+import org.eclipse.lsp4j.services.WorkspaceService
 import java.util.concurrent.CompletableFuture
 
 /**
  * Server-level LSP service: initialize/shutdown/exit and capability advertising.
  */
-class SkriptLanguageServerService(
-    private val textService: SkriptTextDocumentService
-) : LanguageServer, LanguageClientAware {
+class SkriptLanguageServerService(private val textService: SkriptTextDocumentService) :
+    LanguageServer,
+    LanguageClientAware {
 
     override fun connect(client: LanguageClient) {
         textService.connect(client)
@@ -56,9 +56,7 @@ class SkriptLanguageServerService(
         return CompletableFuture.completedFuture(InitializeResult(caps))
     }
 
-    override fun shutdown(): CompletableFuture<Any> {
-        return CompletableFuture.completedFuture(Any())
-    }
+    override fun shutdown(): CompletableFuture<Any> = CompletableFuture.completedFuture(Any())
 
     override fun exit() {
         // The acceptor thread is owned by SkriptLanguageServer; the plugin

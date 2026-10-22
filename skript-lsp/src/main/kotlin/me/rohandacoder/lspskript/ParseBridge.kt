@@ -6,11 +6,11 @@ import ch.njol.skript.log.LogEntry
 import ch.njol.skript.log.RetainingLogHandler
 import ch.njol.skript.log.SkriptLogger
 import ch.njol.util.OpenCloseable
-import org.skriptlang.skript.lang.script.Script
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DiagnosticSeverity
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
+import org.skriptlang.skript.lang.script.Script
 import java.io.File
 import java.io.IOException
 import java.nio.charset.StandardCharsets
@@ -36,7 +36,7 @@ class ParseBridge {
     private val lspDir: File by lazy {
         try {
             Files.createTempDirectory("lspskript").toFile()
-        } catch (e: IOException) {
+        } catch (ignored: IOException) {
             val fallback = File(System.getProperty("java.io.tmpdir"), "lspskript")
             fallback.mkdirs()
             fallback
@@ -49,6 +49,14 @@ class ParseBridge {
         return LspUtils.onMainThread(Supplier<List<Diagnostic>> { doParse(tempFile) })
     }
 
+    /**
+     * Parses the temp file on Skript's behalf.
+     *
+     * `loadScripts` may throw for fatal structural issues of any kind; since
+     * the log handler still captured what it could, the exception is logged
+     * at fine level and deliberately not rethrown.
+     */
+    @Suppress("TooGenericExceptionCaught")
     private fun doParse(tempFile: File): List<Diagnostic> {
         val handler = RetainingLogHandler()
         handler.start()
@@ -57,8 +65,6 @@ class ParseBridge {
             val files: Set<File> = setOf(tempFile)
             ScriptLoader.loadScripts(files, OpenCloseable.EMPTY).join()
         } catch (e: Exception) {
-            // loadScripts may throw for fatal structural issues; the handler
-            // still captured what it could.
             SkriptLogger.LOGGER.log(Level.FINE, "LspSkript parse exception", e)
         } finally {
             handler.stop()
@@ -104,20 +110,18 @@ class ParseBridge {
         return diagnostic
     }
 
-    private fun prepareTempFile(uri: String, content: String): File? {
-        return try {
-            // IMPORTANT: write outside Skript's scripts folder so the server
-            // never auto-loads these temp files on (re)start.
-            val dir = lspDir
-            val name = sanitize(uri) + ".sk"
-            val tempFile = File(dir, name)
-            Files.write(tempFile.toPath(), content.toByteArray(StandardCharsets.UTF_8))
-            tempFiles[uri] = tempFile
-            tempFile
-        } catch (e: IOException) {
-            SkriptLogger.LOGGER.log(Level.WARNING, "LspSkript failed to prepare temp script", e)
-            null
-        }
+    private fun prepareTempFile(uri: String, content: String): File? = try {
+        // IMPORTANT: write outside Skript's scripts folder so the server
+        // never auto-loads these temp files on (re)start.
+        val dir = lspDir
+        val name = sanitize(uri) + ".sk"
+        val tempFile = File(dir, name)
+        Files.write(tempFile.toPath(), content.toByteArray(StandardCharsets.UTF_8))
+        tempFiles[uri] = tempFile
+        tempFile
+    } catch (e: IOException) {
+        SkriptLogger.LOGGER.log(Level.WARNING, "LspSkript failed to prepare temp script", e)
+        null
     }
 
     /** Remove the cached temp file for a URI (e.g. on external change). */
