@@ -2094,12 +2094,36 @@ In `LspSkript.onEnable`:
 state, it is reverted by `/skript reloadconfig`, and its `size <= 0` branch
 strands dead threads so a later `set(>=1)` never completes its futures.
 
-- [ ] **Step 3: Build**
+- [ ] **Step 3: Fix the advertised capabilities**
+
+Two of the advertised capabilities are lies, and a client will hit them.
+
+**`completionProvider.resolveProvider` is `true`, but there is no
+`completionItem/resolve` handler.** A client that believes the server can
+resolve a completion item will call it and get a *method not found* error.
+Either implement the handler or stop advertising it. There is nothing to
+resolve today — the items are built complete — so stop advertising it:
+
+```kotlin
+        caps.setCompletionProvider(CompletionOptions(false, listOf("%", "{", "/")))
+```
+
+**`textDocumentSync` is a bare `TextDocumentSyncKind.Incremental`.** That
+means only `didOpen`, `didChange` and `didClose` are delivered — `didSave` is
+never called, so `SkriptTextDocumentService.didSave` is dead code. Either
+advertise the save options and implement it, or delete the dead handler.
+The parse-only path republishes diagnostics on every change, so `didSave` adds
+nothing: **delete the dead handler** and leave the sync kind as it is.
+
+`renameProvider.prepareProvider` is `true` and there *is* a `prepareRename`
+handler, so that one is accurate — leave it.
+
+- [ ] **Step 4: Build**
 
 Run: `.\gradlew.bat :skript-lsp:build --console=plain`
 Expected: BUILD SUCCESSFUL, 74 tests passing.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add -A
