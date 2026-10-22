@@ -466,8 +466,13 @@ markdown. jsoup is the only robust option — MIT, 525 KB, zero runtime dependen
 
 ### 7.3 Document symbols (third)
 
-From the AST sections rather than the `Config` tree alone, so the outline matches what
-Skript actually parsed.
+From the snapshot's sections, which the engine derives from the config tree it
+already built.
+
+The ambition of walking the *parsed* structures is **deferred**: Skript's
+public API exposes no way to enumerate the structures a parse produced, so
+there is nothing to walk. The config tree is the closest faithful
+approximation, and it is what the current provider already uses.
 
 ### 7.4 Definition / references / rename — unchanged
 
