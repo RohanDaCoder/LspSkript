@@ -50,10 +50,17 @@ java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(25))
     }
+    // Bytecode target: Paper 1.21.x runs on Java 21, so the shipped classes
+    // must be major 65 even though the toolchain above compiles them.
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 kotlin {
     jvmToolchain(25)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+    }
 }
 
 repositories {
