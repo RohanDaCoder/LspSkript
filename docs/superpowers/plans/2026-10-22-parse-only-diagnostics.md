@@ -2057,6 +2057,26 @@ In `skript-lsp/src/main/kotlin/me/rohandacoder/lspskript/SkriptTextDocumentServi
       sequences.remove(uri)
   ```
 
+- **The coroutine scope must be cancelled when the plugin disables.** A scope
+  that outlives the plugin keeps its dispatcher thread alive, and a `/reload`
+  would leak one thread per reload. The scope belongs to the plugin's
+  lifecycle, not to the language server:
+
+  ```kotlin
+  // In LspSkript:
+  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+  override fun onDisable() {
+      scope.cancel()
+      server?.stop()
+  }
+  ```
+
+  The language server service must be given the scope rather than creating
+  its own, so that `onDisable` can cancel it. If the server holds the scope,
+  `LspSkript.onDisable` must call `server.close()` — which cancels the scope,
+  cancels every pending debounce, and shuts the socket down.
+
 - `docId(uri)` must be **stable per URI** — the function namespace depends on
   it. A hash of the URI works; it must not change between parses.
 
@@ -2402,6 +2422,13 @@ git commit -m "feat(lspskript): render hover documentation from Skript's own ann
 4. **Section-entry completion.** When the cursor is inside a section that has
    an entry validator — `command /x:` — offer the valid keys, from
    `entryValidator().getEntryData()`.
+
+**The VS Code client needs no change.** `vscode-skript/extension.js` is a thin
+`vscode-languageclient` wrapper: it registers no completion or resolve
+provider, and the `vscode-languageclient` maps a `CompletionList` with
+`isIncomplete` onto a `vscode.CompletionList` natively. It also never sends
+`textDocument/didSave`, which is consistent with the server dropping that
+handler.
 
 - [ ] **Step 1: Change the signature**
 
