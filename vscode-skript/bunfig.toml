@@ -1,0 +1,19 @@
+# Bun's built-in formatter. `bun fmt` is Prettier-compatible, so this section
+# is the extension's formatting configuration.
+#
+# The indentation, line ending and print width match the repository's
+# .editorconfig, so the two agree by construction. The quote style does not:
+# Prettier's default is double quotes, but this extension's source has always
+# used single quotes.
+[fmt]
+printWidth = 120
+tabWidth = 4
+useTabs = false
+endOfLine = "lf"
+semi = true
+singleQuote = true
+quoteProps = "as-needed"
+trailingComma = "all"
+arrowParens = "always"
+bracketSpacing = true
+sortImports = true
