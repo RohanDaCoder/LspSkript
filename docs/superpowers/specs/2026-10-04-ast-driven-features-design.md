@@ -6,8 +6,8 @@
 ## Goal
 
 Replace LspSkript's heuristic feature layer with Skript's real AST, while
-preserving the project's core guarantee: diagnostics stay byte-identical to a
-real `/skript reload`.
+preserving the project's core guarantee: the diagnostics come from Skript's own
+parser, not from a reimplementation of it.
 
 ## What the research changed
 

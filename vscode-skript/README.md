@@ -1,16 +1,16 @@
 # LspSkript
 
-Full language support for [Skript](https://github.com/SkriptLang/Skript), powered by
+Language support for [Skript](https://github.com/SkriptLang/Skript), powered by
 Skript's **real parser** running inside your Minecraft server.
 
 This extension is the VS Code client. The actual language server lives in the
 **LspSkript** Paper plugin (`me.rohandacoder.lspskript`), which boots an LSP4J
-server over a TCP socket and reuses Skript's own loader to produce diagnostics
-that are identical to what Skript prints in-game.
+server over a TCP socket and reuses Skript's own loader, so the diagnostics come
+from Skript's own parser.
 
 ## Features
 
-- Diagnostics (errors/warnings) identical to a real `/skript reload`
+- Diagnostics from Skript's own parser (the messages `/skript reload` prints)
 - Completion (effects, conditions, expressions, structures, variables)
 - Hover documentation
 - Signature help

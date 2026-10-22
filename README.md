@@ -1,13 +1,13 @@
 # LspSkript
 
-Full language support for [Skript](https://github.com/SkriptLang/Skript), powered by
+Language support for [Skript](https://github.com/SkriptLang/Skript), powered by
 Skript's **real parser** running inside your Minecraft server.
 
 Instead of reimplementing Skript syntax in a standalone linter, LspSkript boots an
 LSP4J language server **inside a Paper plugin**. It feeds the editor buffer to
 Skript's own `ScriptLoader` and maps the resulting log entries into LSP
-diagnostics, so the errors you see in your editor are byte-for-byte identical to
-what a real `/skript reload` prints in-game.
+diagnostics, so the messages you see in your editor are the ones Skript itself
+produced — not a reimplementation of them.
 
 ```mermaid
 flowchart LR
@@ -30,7 +30,7 @@ This is a multi-module repository:
 
 ## Features
 
-- Diagnostics (errors/warnings) identical to a real `/skript reload`
+- Diagnostics produced by Skript's own parser (the same messages `/skript reload` prints)
 - Completion (effects, conditions, expressions, structures, variables)
 - Hover documentation
 - Signature help
@@ -155,6 +155,10 @@ The plugin reads `plugins/LspSkript/config.yml`:
   mapping does not line up with raw editor buffer columns (Skript normalizes
   tabs/whitespace during parsing), so diagnostics span whole lines. This is
   correct by construction, not a bug.
+- **Diagnostic fidelity** — the messages are Skript's own, but every entry Skript
+  logs is shown, including its `INFO`-level debug output, and Skript's habit of
+  keeping only the best error per line is not reproduced. Expect extra or
+  duplicated entries for the same line.
 - **Single parse per change** — one `didChange` triggers one parse; very large
   scripts can take a moment before diagnostics refresh.
 - **Feature heuristics** — completion context, hover, and references are

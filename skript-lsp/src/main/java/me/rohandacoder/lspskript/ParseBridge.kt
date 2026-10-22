@@ -21,7 +21,7 @@ import java.util.logging.Level
 
 /**
  * Parses `.sk` content through Skript's real loader to produce
- * diagnostics that are identical to what Skript prints in-game.
+ * diagnostics built from the log entries Skript's own loader produced.
  *
  * Strategy: the editor content is written to a temporary `.sk` file
  * inside the server's scripts directory, then [ScriptLoader.loadScripts]
